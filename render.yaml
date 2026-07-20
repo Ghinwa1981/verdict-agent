@@ -1,0 +1,18 @@
+services:
+  # 1. Backend and blockchain listener
+  - type: web
+    name: verdict-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.10"
+
+  # 2. Static frontend interface (React + Vite)
+  - type: web
+    name: verdict-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    publishPath: ./frontend/dist
