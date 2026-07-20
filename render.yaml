@@ -1,3 +1,4 @@
+yaml
 services:
   # 1. Backend and blockchain listener
   - type: web
