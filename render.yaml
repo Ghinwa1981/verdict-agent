@@ -10,8 +10,8 @@ services:
       - key: PYTHON_VERSION
         value: "3.10"
 
+staticSites:
   # 2. Static frontend interface (React + Vite)
-  - type: static
-    name: verdict-frontend
+  - name: verdict-frontend
     buildCommand: npm install && npm run build
     publishPath: ./frontend/dist
