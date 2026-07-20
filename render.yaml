@@ -1,4 +1,5 @@
 services:
+  # 1. Backend and blockchain listener
   - type: web
     name: verdict-backend
     env: python
@@ -9,8 +10,8 @@ services:
       - key: PYTHON_VERSION
         value: "3.10"
 
-  - type: web
-    name: verdict-frontend
-    env: static
+static_sites:
+  # 2. Static frontend interface (React + Vite)
+  - name: verdict-frontend
     buildCommand: npm install && npm run build
     publishPath: ./frontend/dist
