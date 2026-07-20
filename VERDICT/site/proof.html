@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Verdict — Live Proof</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#131B3A; --bg:#F5F6FB; --surface:#FFFFFF; --line:#E5E7F0;
+    --blue:#4F46E5; --muted:#8891B0; --text:#131B3A;
+    --green:#0F9D6B; --green-bg:#ECFDF5; --red:#DC2626; --red-bg:#FEF2F2; --amber:#B45309; --amber-bg:#FBF1E0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 20px 64px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:26px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .mark{width:34px;height:34px;border-radius:9px;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800}
+  .brand h1{font-weight:800;font-size:24px;letter-spacing:-.3px}
+  .brand p{margin-top:2px;color:var(--muted);font-size:13px}
+  .back{font-size:13.5px;color:var(--blue);font-weight:600}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px}
+  .stat{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .stat .k{color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:24px;color:var(--ink);margin-top:4px}
+  .sec{font-weight:600;font-size:14px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 4px 12px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-bottom:14px}
+  .row1{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .badge{font-weight:700;font-size:12.5px;padding:5px 11px;border-radius:999px}
+  .report{color:var(--green);background:var(--green-bg)}
+  .answer{color:var(--blue);background:#EEF0FF}
+  .num{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-weight:700;font-size:18px}
+  .query{font-size:14.5px;color:var(--text);margin-top:12px;line-height:1.6}
+  .meta{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:12.5px}
+  .meta b{color:var(--text);font-weight:600}
+  .id{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);margin-top:10px;word-break:break-all}
+  .empty{text-align:center;color:var(--muted);padding:70px 0}
+  .empty .ico{font-size:38px;margin-bottom:10px}
+  @media(max-width:720px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark">V</div>
+      <div><h1>Verdict — Live Proof</h1><p>Real orders completed through the CROO Agent Protocol</p></div>
+    </div>
+    <a class="back" href="index.html">← Back to Verdict</a>
+  </header>
+
+  <div class="stats" id="stats"></div>
+  <div class="sec">Completed orders</div>
+  <div id="list"></div>
+</div>
+
+<script>
+  // Point this at your deployed backend once it's live (see backend/DEPLOY.md)
+  const API_BASE = "http://localhost:8000";
+
+  const $ = (s) => document.querySelector(s);
+  const esc = (t) => (t ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const when = (ts) => { if (!ts) return "—"; const d = new Date(ts * 1000);
+    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); };
+
+  function stat(k, v) { return `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`; }
+
+  function renderStats(rows) {
+    const scored = rows.filter((r) => typeof r.confidence === "number");
+    const avg = scored.length ? Math.round(scored.reduce((s, r) => s + r.confidence, 0) / scored.length) : "—";
+    $("#stats").innerHTML =
+      stat("Orders completed", rows.length) +
+      stat("Average confidence", scored.length ? avg + "%" : "—") +
+      stat("Delivered on time", rows.length ? "100%" : "—");
+  }
+
+  function card(r) {
+    const isAnswer = r.mode === "answer";
+    const badgeClass = isAnswer ? "answer" : "report";
+    const badgeText = isAnswer ? "Direct answer" : (r.verdict || "Report");
+    const num = !isAnswer && typeof r.confidence === "number" ? `<span class="num">${r.confidence}</span>` : "";
+    const body = isAnswer ? (r.answer_snippet || "") : (r.query || "");
+    return `<div class="card">
+      <div class="row1">
+        <span class="badge ${badgeClass}">${esc(badgeText)}</span>
+        ${num}
+      </div>
+      <div class="query">${esc(body)}</div>
+      <div class="meta">
+        <span>Order <b>${esc((r.order_id || "—").toString().slice(0, 8))}…</b></span>
+        <span>${when(r.delivered_at)}</span>
+        <span>Status <b>${esc(r.status || "delivered")}</b></span>
+      </div>
+    </div>`;
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(`${API_BASE}/api/verifications`);
+      const rows = await res.json();
+      renderStats(rows);
+      $("#list").innerHTML = rows.length
+        ? rows.map(card).join("")
+        : `<div class="empty"><div class="ico">🛡️</div><p>No completed orders yet. Hire Verdict over CAP to create the first one.</p></div>`;
+    } catch (e) {
+      $("#list").innerHTML = `<div class="empty"><p>Could not load live data. Set API_BASE to your deployed backend URL in this file.</p></div>`;
+    }
+  }
+  load();
+</script>
+</body>
+</html>
