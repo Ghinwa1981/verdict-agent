@@ -1,6 +1,4 @@
-yaml
 services:
-  # 1. Backend and blockchain listener
   - type: web
     name: verdict-backend
     env: python
@@ -11,7 +9,6 @@ services:
       - key: PYTHON_VERSION
         value: "3.10"
 
-  # 2. Static frontend interface (React + Vite)
   - type: web
     name: verdict-frontend
     env: static
