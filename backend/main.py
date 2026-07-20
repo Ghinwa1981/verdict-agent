@@ -1,5 +1,7 @@
 # main.py
 import os
+import asyncio
+import json
 from typing import List, Optional
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -49,13 +51,29 @@ class PaidAnalysisRequest(BaseModel):
 app = FastAPI()
 
 
+@app.on_event("startup")
+async def start_cap_listener():
+    """Runs the CAP provider listener in the background, inside the same
+    process as the web server, so a single free hosting instance handles
+    both the human-facing API and the CROO agent-commerce lifecycle."""
+    required = ["CROO_API_URL", "CROO_WS_URL", "CROO_SDK_KEY"]
+    if not all(os.getenv(k) for k in required):
+        print("CAP listener not started: missing CROO_* env vars.")
+        return
+    try:
+        from croo_provider import run_cap_listener
+        asyncio.create_task(run_cap_listener())
+    except Exception as e:
+        print(f"CAP listener failed to start: {e}")
+
+
 @app.get("/")
 def root():
     return RedirectResponse(url="/docs")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,7 +101,7 @@ def analyze_data(request: AnalysisRequest):
     result["free_sample"] = True
     result["upsell"] = (
         "This is one real point per section, free. Paid tiers unlock more: "
-        "Quick (3 each), Standard (5 each), Pro (8 each), or Pro Max (Full Depth)."
+        "Quick (3 each), Standard (5 each), Pro (8 each), or Pro Max (12 each, full depth)."
     )
     return result
 
@@ -148,6 +166,18 @@ def analyze_paid(req: PaidAnalysisRequest):
     return analyze_text_integrity(
         req.text, depth=req.tier, files=_files_as_dicts(req.files)
     )
+
+
+@app.get("/api/verifications")
+def get_verifications():
+    """Serves the log of real, completed CAP orders for the live proof
+    dashboard. Returns an empty list until at least one order has been
+    delivered - no fabricated data."""
+    log_path = os.path.join(os.path.dirname(__file__), "verifications_log.json")
+    if not os.path.exists(log_path):
+        return []
+    with open(log_path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 @app.get("/health")
