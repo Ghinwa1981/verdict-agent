@@ -1,5 +1,6 @@
+YAML
 services:
-  # 1. Backend service and CRO Listener (combined in a single free service)
+  # 1. Background worker and API backend
   - type: web
     name: verdict-backend
     env: python
@@ -9,10 +10,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.0
-      # Other secret environment variables will be linked manually in the Render dashboard for security
 
-  # 2. Frontend service (fast and free static site)
-  - type: static
+  # 2. Static frontend interface (React + Vite)
+  - type: web
     name: verdict-frontend
-    publishPath: ./frontend # Modify this path if frontend files are located in a different directory (e.g., root or build)
-    buildCommand: "" # If the interface is plain HTML/JS, leave it blank. If it is React, use: npm run build
+    env: static
+    buildCommand: npm install && npm run build
+    publishPath: ./frontend/dist
