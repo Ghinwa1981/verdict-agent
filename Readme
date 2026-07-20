@@ -1,0 +1,131 @@
+# VERDICT: Multi-Agent Text Integrity & On-Chain Analysis Engine
+
+VERDICT is an advanced, production-ready analysis engine designed to evaluate the integrity of claims, investments, legal queries, and documents. It leverages a highly optimized 3-agent pipeline, integrated with fiat payments via Stripe and decentralized on-chain settlement through the CROO Protocol network.
+
+The system is strategically engineered to run both its FastAPI web server and its live WebSocket blockchain listener within a single, asynchronous Python process—allowing it to be hosted entirely on free-tier cloud environments (like Render).
+
+---
+
+## 🛠 Core Architecture: The 3-Agent Pipeline
+
+To prevent confirmation bias and ensure high-integrity reports, VERDICT utilizes a structured, modular multi-agent orchestration workflow:
+[ User Query / File Upload ]
+                           │
+                           ▼
+                  ┌─────────────────┐
+                  │  ResearchAgent  │  ◄── Dynamically scales search depth
+                  └────────┬────────┘      based on requested tier (3-8 results)
+                           │
+                           ▼
+                 (Gathered Context)
+                           │
+        ┌──────────────────┴──────────────────┐
+        ▼ (Quick Mode)                        ▼ (Full Mode)
+┌──────────────┐                     ┌────────────────┐
+│ VerdictAgent │                     │ FactCheckAgent │ ◄── Acts as "Devil's Advocate"
+└──────┬───────┘                     └────────┬───────┘     to find contradictions
+       │                                      │
+       │                               (Scrutiny Report)
+       │                                      │
+       │                                      ▼
+       │                             ┌────────────────┐
+       │                             │  VerdictAgent  │ ◄── Synthesizes raw research
+       │                             └────────┬───────┘     + critical scrutiny report
+       ▼                                      ▼
+[ Fast Verdict JSON ]                [ Deep Verdict JSON ]
+
+1. **Research Agent (`ResearchAgent`):** Performs real-time web searches and extracts raw text from PDF/Text attachments. It dynamically scales search queries (3 results for Quick tier, 8 results for Full/Pro tiers) to optimize API costs and latency.
+2. **Fact-Checking Agent (`FactCheckAgent`):** Acts as the "Devil's Advocate." It critically cross-examines the research context against the user's claim to expose logical fallacies, source unreliability, contradictions, and compliance/financial risks. *(Active only in "Full/Pro Max" depth)*.
+3. **Verdict Agent (`VerdictAgent`):** The final synthesizer. It weighs the raw research and the critical scrutiny report to deliver an unbiased structured JSON verdict containing verification confidence, risks, evidence, and actionable next steps.
+
+---
+
+## 🚀 Key Features
+
+- **Decentralized CAP Settlement:** Fully integrates with the **CROO Network** as a live CAP provider. Listens to WebSockets, accepts negotiations, executes analysis, and delivers settlements on-chain.
+- **Stripe-Tiered Monetization:** Complete checkout integration with multiple service tiers (Quick, Standard, Pro, Pro Max), backed by secure payment verification endpoint checks.
+- **Multi-Modal Capabilities:** Supports PDF reading, text documents, and base64-encoded image scanning (`VISION_MODEL`).
+- **Single-Process Concurrency:** Uses Python's `asyncio` to run the WebSocket listener in a non-blocking background thread inside the FastAPI startup event.
+- **Production-Ready Logging:** Maintains a sliding-window local log (`verifications_log.json`) of delivered verifications to populate live dashboards without on-chain performance bottlenecks.
+
+---
+
+## 📦 Tech Stack
+
+- **Framework:** FastAPI (Python 3.10+)
+- **LLM Orchestration:** Groq API (High-speed Llama & Vision models)
+- **Web Search Engine:** DuckDuckGo Search (DDGS API)
+- **Payment Gateway:** Stripe API
+- **On-chain Gateway:** CROO SDK (WebSockets & HTTP Client)
+- **Document Parser:** PyPDF
+- **Deployment Platform:** Render (Blueprint infrastructure)
+
+---
+
+## ⚙️ Environment Variables Setup
+
+Create a `.env` file in the root directory and configure the following parameters:
+
+```env
+# Server Config
+ALLOWED_ORIGINS=*
+
+# Groq API Configuration
+GROQ_API_KEY=your_groq_api_key
+
+# Stripe Payment Config
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PRICE_QUICK=price_...
+STRIPE_PRICE_STANDARD=price_...
+STRIPE_PRICE_PRO=price_...
+STRIPE_PRICE_PROMAX=price_...
+
+# CROO Protocol Node Configuration (On-chain CAP)
+CROO_API_URL=https://...
+CROO_WS_URL=wss://...
+CROO_SDK_KEY=your_croo_sdk_key
+
+💻 Local Installation & Run
+Clone the Repository:
+code
+Bash
+git clone https://github.com/your-username/verdict.git
+cd verdict
+Setup Virtual Environment:
+code
+Bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+Run the Server:
+code
+Bash
+uvicorn main:app --reload --port 8000
+FastAPI swagger documentation will be accessible at http://localhost:8000/docs.
+The CROO Listener will boot automatically in the background on startup.
+☁️ One-Click Deployment to Render
+This repository includes a native render.yaml blueprint configuration.
+To deploy both your FastAPI Backend (with CROO background listener) and your Frontend Static site:
+Push your latest code changes to your GitHub Repository.
+Sign in to Render.
+Click on New + and select Blueprint.
+Link your GitHub Repository.
+Render will parse the render.yaml file and automatically spin up:
+Your web application.
+Your static web server (configured with correct file paths).
+Fill in your environment variables in the Render environment settings dashboard.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
