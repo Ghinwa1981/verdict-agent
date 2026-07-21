@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import jsPDF from 'jspdf';
+import html2pdf from 'html2pdf.js';
 import { triggerAgent, createCheckoutSession, analyzePaid, fetchPrices } from '../api/apiService';
 
 const verdictColor = (confidence, verdict) => {
@@ -16,116 +16,101 @@ const tiers = [
   { id: 'pro', label: 'Pro', desc: '8 evidence, 8 risks, 8 steps' },
   { id: 'promax', label: 'Pro Max', desc: 'Full Depth' },
 ];
- 
-const cleanTextForExport = (text) => {
-  if (!text) return "";
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&[a-zA-Z0-9#]+;/g, ' ') 
-    .trim();
+
+// Decode any existing HTML entities (e.g. text that already went through an
+// HTML-escaping step upstream), then re-escape it safely for embedding in an
+// HTML string. Works for ANY language/script since it only touches &, <, >, " '
+// and never assumes a particular alphabet or byte width.
+const decodeEntities = (text) => {
+  if (!text) return '';
+  const el = document.createElement('textarea');
+  el.innerHTML = text;
+  return el.value;
 };
 
-const downloadPdf = (report, queryText) => {
-  const doc = new jsPDF();
-  let y = 20;
+const escapeHtml = (text) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-  const cleanedQuery = cleanTextForExport(queryText);
+const prepareText = (text) => escapeHtml(decodeEntities(text || ''));
 
-  doc.setFontSize(18);
-  doc.text('Verdict Report', 14, y);
-  y += 10;
-
-  doc.setFontSize(11);
+// Builds the report body as real HTML. `dir="auto"` lets the browser apply the
+// Unicode bidi algorithm per element, so Arabic/Hebrew/English/anything else
+// gets correct direction and shaping automatically - no manual font/RTL work.
+const buildReportHtml = (report, queryText) => {
+  let html = '<h1 style="font-size:20px;margin:0 0 14px;">Verdict Report</h1>';
+  html += `<p dir="auto"><b>Query:</b> ${prepareText(queryText)}</p>`;
 
   if (report.mode === 'answer') {
-    doc.text('Query:', 14, y);
-    y += 6;
-    doc.text(doc.splitTextToSize(cleanedQuery, 180), 14, y);
-    y += 16;
-    doc.text('Answer:', 14, y);
-    y += 6;
-    doc.text(doc.splitTextToSize(cleanTextForExport(report.answer || ''), 180), 14, y);
-    y += 16;
+    html += '<h2 style="font-size:15px;margin:16px 0 6px;">Answer</h2>';
+    html += `<p dir="auto">${prepareText(report.answer)}</p>`;
   } else {
-    doc.text(`Verdict: ${cleanTextForExport(report.verdict)}  (${report.confidence}% confidence)`, 14, y);
-    y += 8;
-    doc.text('Query:', 14, y);
-    y += 6;
-    doc.text(doc.splitTextToSize(cleanedQuery, 180), 14, y);
-    y += 16;
+    html += `<p dir="auto"><b>Verdict:</b> ${prepareText(report.verdict)} (${report.confidence}% confidence)</p>`;
 
     if (report.explanation) {
-      doc.text('Explanation:', 14, y);
-      y += 6;
-      doc.text(doc.splitTextToSize(cleanTextForExport(report.explanation), 180), 14, y);
-      y += 16;
+      html += '<h2 style="font-size:15px;margin:16px 0 6px;">Explanation</h2>';
+      html += `<p dir="auto">${prepareText(report.explanation)}</p>`;
     }
 
     const section = (title, items) => {
-      if (!items || !items.length) return;
-      doc.text(title, 14, y);
-      y += 6;
-      items.forEach((item) => {
-        const cleanedItem = cleanTextForExport(item);
-        const lines = doc.splitTextToSize('- ' + cleanedItem, 176);
-        doc.text(lines, 16, y);
-        y += lines.length * 6 + 2;
-      });
-      y += 6;
-    };
-
-    section('Evidence:', report.evidence);
-    section('Risks:', report.risks);
-    section('Next steps:', report.next_steps);
-  }
-
-  if (report.sources && report.sources.length) {
-    doc.text('Sources:', 14, y);
-    y += 6;
-    report.sources.forEach((s) => {
-      const cleanTitle = cleanTextForExport(s.title);
-      const lines = doc.splitTextToSize(`- ${cleanTitle} - ${s.url}`, 176);
-      doc.text(lines, 16, y);
-      y += lines.length * 6 + 2;
-    });
-  }
-
-  doc.save('verdict-report.pdf');
-};
-
-const downloadWord = (report, queryText) => {
-  const cleanedQuery = cleanTextForExport(queryText);
-  let html = '<html><head><meta charset="utf-8"></head><body>';
-  html += '<h1>Verdict Report</h1>';
-  html += `<p><b>Query:</b> ${cleanedQuery}</p>`;
-
-  if (report.mode === 'answer') {
-    html += `<h2>Answer</h2><p>${cleanTextForExport(report.answer || '')}</p>`;
-  } else {
-    html += `<p><b>Verdict:</b> ${cleanTextForExport(report.verdict)} (${report.confidence}% confidence)</p>`;
-    if (report.explanation) html += `<h2>Explanation</h2><p>${cleanTextForExport(report.explanation)}</p>`;
-    const section = (title, items) => {
       if (!items || !items.length) return '';
-      return `<h2>${title}</h2><ul>${items.map((i) => `<li>${cleanTextForExport(i)}</li>`).join('')}</ul>`;
+      const lis = items.map((i) => `<li dir="auto">${prepareText(i)}</li>`).join('');
+      return `<h2 style="font-size:15px;margin:16px 0 6px;">${title}</h2><ul style="margin:0;padding-inline-start:20px;">${lis}</ul>`;
     };
+
     html += section('Evidence', report.evidence);
     html += section('Risks', report.risks);
     html += section('Next steps', report.next_steps);
   }
 
   if (report.sources && report.sources.length) {
-    html += '<h2>Sources</h2><ul>';
-    report.sources.forEach((s) => {
-      html += `<li><a href="${s.url}">${cleanTextForExport(s.title)}</a></li>`;
-    });
-    html += '</ul>';
+    const lis = report.sources
+      .map((s) => `<li dir="auto"><a href="${s.url}">${prepareText(s.title)}</a> - ${s.url}</li>`)
+      .join('');
+    html += `<h2 style="font-size:15px;margin:16px 0 6px;">Sources</h2><ul style="margin:0;padding-inline-start:20px;">${lis}</ul>`;
   }
 
-  html += '</body></html>';
+  return html;
+};
+
+// Font stack covers Latin, Arabic, and most other scripts via common
+// OS fonts (Segoe UI / Tahoma on Windows, system-ui elsewhere).
+const REPORT_FONT_STACK =
+  '"Segoe UI","Noto Naskh Arabic","Noto Sans Arabic",Tahoma,Arial,system-ui,sans-serif';
+
+// Renders the report to an off-screen HTML element and lets html2pdf.js
+// (html2canvas + jsPDF under the hood) rasterize exactly what the browser
+// draws. Since the browser itself does the text shaping, this supports
+// Arabic, Hebrew, CJK, or anything else without extra font embedding.
+const downloadPdf = (report, queryText) => {
+  const container = document.createElement('div');
+  container.style.cssText =
+    `position:fixed;left:-9999px;top:0;width:700px;padding:24px;` +
+    `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;`;
+  container.innerHTML = buildReportHtml(report, queryText);
+  document.body.appendChild(container);
+
+  html2pdf()
+    .set({
+      margin: 12,
+      filename: 'verdict-report.pdf',
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+    })
+    .from(container)
+    .save()
+    .finally(() => document.body.removeChild(container));
+};
+
+const downloadWord = (report, queryText) => {
+  const bodyHtml = buildReportHtml(report, queryText);
+  const html =
+    `<html dir="auto"><head><meta charset="utf-8"></head>` +
+    `<body style="font-family:${REPORT_FONT_STACK};">${bodyHtml}</body></html>`;
 
   const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
   const url = URL.createObjectURL(blob);
