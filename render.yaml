@@ -3,6 +3,7 @@ services:
   - type: web
     name: verdict-backend
     runtime: python
+    rootDir: backend        # The server told us to log into the Backend folder to work
     plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
@@ -14,5 +15,6 @@ services:
   - type: web
     name: verdict-frontend
     runtime: static
+    rootDir: frontend       # The server told us to log into the frontend folder to work
     buildCommand: npm install && npm run build
-    staticPublishPath: ./frontend/dist
+    staticPublishPath: ./dist # The volume became relatively for frontend
