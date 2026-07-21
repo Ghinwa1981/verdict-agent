@@ -17,7 +17,6 @@ const tiers = [
   { id: 'promax', label: 'Pro Max', desc: 'Full Depth' },
 ];
 
-// Helper function to check if the text contains Arabic characters
 const isArabicText = (text) => {
   if (!text) return false;
   const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
@@ -45,8 +44,6 @@ const escapeHtml = (text) =>
 
 const prepareText = (text) => escapeHtml(decodeEntities(text || ''));
 
-// Builds the report body as real HTML.
-// Dynamically supports layout direction and alignment to prevent export issues.
 const buildReportHtml = (report, queryText, direction) => {
   const alignStyle = direction === 'rtl' ? 'text-align:right;' : 'text-align:left;';
   
@@ -87,47 +84,49 @@ const buildReportHtml = (report, queryText, direction) => {
   return html;
 };
 
-// Font stack covers Latin, Arabic, and most other scripts via common
-// OS fonts (Segoe UI / Tahoma on Windows, system-ui elsewhere).
 const REPORT_FONT_STACK =
   '"Segoe UI","Noto Naskh Arabic","Noto Sans Arabic",Tahoma,Arial,system-ui,sans-serif';
 
-// Renders the report to an off-screen HTML element and lets html2pdf.js
-// draw exactly what the browser sees with dynamic RTL/LTR support.
 const downloadPdf = (report, queryText) => {
-  // Check the report language to determine text direction
   const isArabic = isArabicText(queryText || report.answer || report.verdict || '');
   const direction = isArabic ? 'rtl' : 'ltr';
 
   const container = document.createElement('div');
-  container.setAttribute('dir', direction); // Explicitly set direction on export container
+  container.setAttribute('dir', direction);
+  
   container.style.cssText =
-    `position:absolute;top:0;left:0;width:700px;padding:24px;z-index:-1000;` +
-    `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;` +
-    `direction:${direction};text-align:${isArabic ? 'right' : 'left'};`;
+    `position: fixed; top: 0; left: 0; width: 750px; padding: 40px; z-index: -1000;` +
+    `font-family: ${REPORT_FONT_STACK}; font-size: 14px; line-height: 1.6; color: #111; background: #fff;` +
+    `direction: ${direction}; text-align: ${isArabic ? 'right' : 'left'};`;
   
   container.innerHTML = buildReportHtml(report, queryText, direction);
   document.body.insertBefore(container, document.body.firstChild);
 
-  // Wait until Unicode fonts are fully loaded before rendering to ensure accurate output
-  document.fonts.ready.then(() => {
+  setTimeout(() => {
     html2pdf()
       .set({
-        margin: 12,
+        margin: 15,
         filename: 'verdict-report.pdf',
         html2canvas: { 
           scale: 2, 
           useCORS: true, 
           scrollX: 0, 
-          scrollY: 0,
-          logging: false 
+          scrollY: -window.scrollY,
+          windowWidth: document.documentElement.clientWidth,
+          windowHeight: document.documentElement.clientHeight
         },
         jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
       })
       .from(container)
       .save()
-      .finally(() => document.body.removeChild(container));
-  });
+      .then(() => {
+        document.body.removeChild(container);
+      })
+      .catch((err) => {
+        console.error("PDF download error:", err);
+        document.body.removeChild(container);
+      });
+  }, 200);
 };
 
 const downloadWord = (report, queryText) => {
@@ -139,7 +138,6 @@ const downloadWord = (report, queryText) => {
     `<html dir="${direction}"><head><meta charset="utf-8"></head>` +
     `<body style="font-family:${REPORT_FONT_STACK}; direction:${direction};">${bodyHtml}</body></html>`;
 
-  // Explicitly defining the charset prevents character encoding conflicts in Word
   const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
