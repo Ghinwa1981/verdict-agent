@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const AGENT_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+const AGENT_URL = import.meta.env.VITE_BACKEND_URL || 'https://verdict-backend-jupn.onrender.com';
 
 export const triggerAgent = async (inputData, files) => {
   try {
