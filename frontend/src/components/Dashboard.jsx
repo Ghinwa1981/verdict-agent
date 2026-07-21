@@ -17,6 +17,13 @@ const tiers = [
   { id: 'promax', label: 'Pro Max', desc: 'Full Depth' },
 ];
 
+// Helper function to check if the text contains Arabic characters
+const isArabicText = (text) => {
+  if (!text) return false;
+  const arabicPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+  return arabicPattern.test(text);
+};
+
 // Decode any existing HTML entities (e.g. text that already went through an
 // HTML-escaping step upstream), then re-escape it safely for embedding in an
 // HTML string. Works for ANY language/script since it only touches &, <, >, " '
@@ -38,28 +45,30 @@ const escapeHtml = (text) =>
 
 const prepareText = (text) => escapeHtml(decodeEntities(text || ''));
 
-// Builds the report body as real HTML. `dir="auto"` lets the browser apply the
-// Unicode bidi algorithm per element, so Arabic/Hebrew/English/anything else
-// gets correct direction and shaping automatically - no manual font/RTL work.
-const buildReportHtml = (report, queryText) => {
-  let html = '<h1 style="font-size:20px;margin:0 0 14px;">Verdict Report</h1>';
-  html += `<p dir="auto"><b>Query:</b> ${prepareText(queryText)}</p>`;
+// Builds the report body as real HTML.
+// Dynamically supports layout direction and alignment to prevent export issues.
+const buildReportHtml = (report, queryText, direction) => {
+  const alignStyle = direction === 'rtl' ? 'text-align:right;' : 'text-align:left;';
+  
+  let html = `<h1 style="font-size:20px;margin:0 0 14px;${alignStyle}">Verdict Report</h1>`;
+  html += `<p style="${alignStyle}"><b>Query:</b> ${prepareText(queryText)}</p>`;
 
   if (report.mode === 'answer') {
-    html += '<h2 style="font-size:15px;margin:16px 0 6px;">Answer</h2>';
-    html += `<p dir="auto">${prepareText(report.answer)}</p>`;
+    html += `<h2 style="font-size:15px;margin:16px 0 6px;${alignStyle}">Answer</h2>`;
+    html += `<p style="${alignStyle}">${prepareText(report.answer)}</p>`;
   } else {
-    html += `<p dir="auto"><b>Verdict:</b> ${prepareText(report.verdict)} (${report.confidence}% confidence)</p>`;
+    html += `<p style="${alignStyle}"><b>Verdict:</b> ${prepareText(report.verdict)} (${report.confidence}% confidence)</p>`;
 
     if (report.explanation) {
-      html += '<h2 style="font-size:15px;margin:16px 0 6px;">Explanation</h2>';
-      html += `<p dir="auto">${prepareText(report.explanation)}</p>`;
+      html += `<h2 style="font-size:15px;margin:16px 0 6px;${alignStyle}">Explanation</h2>`;
+      html += `<p style="${alignStyle}">${prepareText(report.explanation)}</p>`;
     }
 
     const section = (title, items) => {
       if (!items || !items.length) return '';
-      const lis = items.map((i) => `<li dir="auto">${prepareText(i)}</li>`).join('');
-      return `<h2 style="font-size:15px;margin:16px 0 6px;">${title}</h2><ul style="margin:0;padding-inline-start:20px;">${lis}</ul>`;
+      const lis = items.map((i) => `<li>${prepareText(i)}</li>`).join('');
+      return `<h2 style="font-size:15px;margin:16px 0 6px;${alignStyle}">${title}</h2>` +
+             `<ul style="margin:0;padding-inline-start:20px;${alignStyle}">${lis}</ul>`;
     };
 
     html += section('Evidence', report.evidence);
@@ -69,9 +78,10 @@ const buildReportHtml = (report, queryText) => {
 
   if (report.sources && report.sources.length) {
     const lis = report.sources
-      .map((s) => `<li dir="auto"><a href="${s.url}">${prepareText(s.title)}</a> - ${s.url}</li>`)
+      .map((s) => `<li><a href="${s.url}">${prepareText(s.title)}</a> - ${s.url}</li>`)
       .join('');
-    html += `<h2 style="font-size:15px;margin:16px 0 6px;">Sources</h2><ul style="margin:0;padding-inline-start:20px;">${lis}</ul>`;
+    html += `<h2 style="font-size:15px;margin:16px 0 6px;${alignStyle}">Sources</h2>` +
+           `<ul style="margin:0;padding-inline-start:20px;${alignStyle}">${lis}</ul>`;
   }
 
   return html;
@@ -83,41 +93,54 @@ const REPORT_FONT_STACK =
   '"Segoe UI","Noto Naskh Arabic","Noto Sans Arabic",Tahoma,Arial,system-ui,sans-serif';
 
 // Renders the report to an off-screen HTML element and lets html2pdf.js
-// (html2canvas + jsPDF under the hood) rasterize exactly what the browser
-// draws. Since the browser itself does the text shaping, this supports
-// Arabic, Hebrew, CJK, or anything else without extra font embedding.
+// draw exactly what the browser sees with dynamic RTL/LTR support.
 const downloadPdf = (report, queryText) => {
-  // Keep the node in normal document flow (top:0/left:0) instead of pushing it
-  // off-screen with a negative offset - html2canvas can miscalculate the
-  // capture rect for off-screen/scrolled content and produce a blank canvas.
-  // A very negative z-index keeps it invisible to the user (tucked behind the
-  // real page) without moving it out of the renderable viewport.
+  // Check the report language to determine text direction
+  const isArabic = isArabicText(queryText || report.answer || report.verdict || '');
+  const direction = isArabic ? 'rtl' : 'ltr';
+
   const container = document.createElement('div');
+  container.setAttribute('dir', direction); // Explicitly set direction on export container
   container.style.cssText =
     `position:absolute;top:0;left:0;width:700px;padding:24px;z-index:-1000;` +
-    `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;`;
-  container.innerHTML = buildReportHtml(report, queryText);
+    `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;` +
+    `direction:${direction};text-align:${isArabic ? 'right' : 'left'};`;
+  
+  container.innerHTML = buildReportHtml(report, queryText, direction);
   document.body.insertBefore(container, document.body.firstChild);
 
-  html2pdf()
-    .set({
-      margin: 12,
-      filename: 'verdict-report.pdf',
-      html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
-      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-    })
-    .from(container)
-    .save()
-    .finally(() => document.body.removeChild(container));
+  // Wait until Unicode fonts are fully loaded before rendering to ensure accurate output
+  document.fonts.ready.then(() => {
+    html2pdf()
+      .set({
+        margin: 12,
+        filename: 'verdict-report.pdf',
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          scrollX: 0, 
+          scrollY: 0,
+          logging: false 
+        },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      })
+      .from(container)
+      .save()
+      .finally(() => document.body.removeChild(container));
+  });
 };
 
 const downloadWord = (report, queryText) => {
-  const bodyHtml = buildReportHtml(report, queryText);
-  const html =
-    `<html dir="auto"><head><meta charset="utf-8"></head>` +
-    `<body style="font-family:${REPORT_FONT_STACK};">${bodyHtml}</body></html>`;
+  const isArabic = isArabicText(queryText || report.answer || report.verdict || '');
+  const direction = isArabic ? 'rtl' : 'ltr';
 
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+  const bodyHtml = buildReportHtml(report, queryText, direction);
+  const html =
+    `<html dir="${direction}"><head><meta charset="utf-8"></head>` +
+    `<body style="font-family:${REPORT_FONT_STACK}; direction:${direction};">${bodyHtml}</body></html>`;
+
+  // Explicitly defining the charset prevents character encoding conflicts in Word
+  const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
