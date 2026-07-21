@@ -87,18 +87,23 @@ const REPORT_FONT_STACK =
 // draws. Since the browser itself does the text shaping, this supports
 // Arabic, Hebrew, CJK, or anything else without extra font embedding.
 const downloadPdf = (report, queryText) => {
+  // Keep the node in normal document flow (top:0/left:0) instead of pushing it
+  // off-screen with a negative offset - html2canvas can miscalculate the
+  // capture rect for off-screen/scrolled content and produce a blank canvas.
+  // A very negative z-index keeps it invisible to the user (tucked behind the
+  // real page) without moving it out of the renderable viewport.
   const container = document.createElement('div');
   container.style.cssText =
-    `position:fixed;left:-9999px;top:0;width:700px;padding:24px;` +
+    `position:absolute;top:0;left:0;width:700px;padding:24px;z-index:-1000;` +
     `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;`;
   container.innerHTML = buildReportHtml(report, queryText);
-  document.body.appendChild(container);
+  document.body.insertBefore(container, document.body.firstChild);
 
   html2pdf()
     .set({
       margin: 12,
       filename: 'verdict-report.pdf',
-      html2canvas: { scale: 2, useCORS: true },
+      html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
       jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
     })
     .from(container)
