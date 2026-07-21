@@ -16,10 +16,24 @@ const tiers = [
   { id: 'pro', label: 'Pro', desc: '8 evidence, 8 risks, 8 steps' },
   { id: 'promax', label: 'Pro Max', desc: 'Full Depth' },
 ];
+ 
+const cleanTextForExport = (text) => {
+  if (!text) return "";
+  return text
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&[a-zA-Z0-9#]+;/g, ' ') 
+    .trim();
+};
 
 const downloadPdf = (report, queryText) => {
   const doc = new jsPDF();
   let y = 20;
+
+  const cleanedQuery = cleanTextForExport(queryText);
 
   doc.setFontSize(18);
   doc.text('Verdict Report', 14, y);
@@ -30,24 +44,24 @@ const downloadPdf = (report, queryText) => {
   if (report.mode === 'answer') {
     doc.text('Query:', 14, y);
     y += 6;
-    doc.text(doc.splitTextToSize(queryText, 180), 14, y);
+    doc.text(doc.splitTextToSize(cleanedQuery, 180), 14, y);
     y += 16;
     doc.text('Answer:', 14, y);
     y += 6;
-    doc.text(doc.splitTextToSize(report.answer || '', 180), 14, y);
+    doc.text(doc.splitTextToSize(cleanTextForExport(report.answer || ''), 180), 14, y);
     y += 16;
   } else {
-    doc.text(`Verdict: ${report.verdict}  (${report.confidence}% confidence)`, 14, y);
+    doc.text(`Verdict: ${cleanTextForExport(report.verdict)}  (${report.confidence}% confidence)`, 14, y);
     y += 8;
     doc.text('Query:', 14, y);
     y += 6;
-    doc.text(doc.splitTextToSize(queryText, 180), 14, y);
+    doc.text(doc.splitTextToSize(cleanedQuery, 180), 14, y);
     y += 16;
 
     if (report.explanation) {
       doc.text('Explanation:', 14, y);
       y += 6;
-      doc.text(doc.splitTextToSize(report.explanation, 180), 14, y);
+      doc.text(doc.splitTextToSize(cleanTextForExport(report.explanation), 180), 14, y);
       y += 16;
     }
 
@@ -56,7 +70,8 @@ const downloadPdf = (report, queryText) => {
       doc.text(title, 14, y);
       y += 6;
       items.forEach((item) => {
-        const lines = doc.splitTextToSize('- ' + item, 176);
+        const cleanedItem = cleanTextForExport(item);
+        const lines = doc.splitTextToSize('- ' + cleanedItem, 176);
         doc.text(lines, 16, y);
         y += lines.length * 6 + 2;
       });
@@ -72,7 +87,8 @@ const downloadPdf = (report, queryText) => {
     doc.text('Sources:', 14, y);
     y += 6;
     report.sources.forEach((s) => {
-      const lines = doc.splitTextToSize(`- ${s.title} - ${s.url}`, 176);
+      const cleanTitle = cleanTextForExport(s.title);
+      const lines = doc.splitTextToSize(`- ${cleanTitle} - ${s.url}`, 176);
       doc.text(lines, 16, y);
       y += lines.length * 6 + 2;
     });
@@ -82,18 +98,19 @@ const downloadPdf = (report, queryText) => {
 };
 
 const downloadWord = (report, queryText) => {
+  const cleanedQuery = cleanTextForExport(queryText);
   let html = '<html><head><meta charset="utf-8"></head><body>';
   html += '<h1>Verdict Report</h1>';
-  html += `<p><b>Query:</b> ${queryText}</p>`;
+  html += `<p><b>Query:</b> ${cleanedQuery}</p>`;
 
   if (report.mode === 'answer') {
-    html += `<h2>Answer</h2><p>${report.answer || ''}</p>`;
+    html += `<h2>Answer</h2><p>${cleanTextForExport(report.answer || '')}</p>`;
   } else {
-    html += `<p><b>Verdict:</b> ${report.verdict} (${report.confidence}% confidence)</p>`;
-    if (report.explanation) html += `<h2>Explanation</h2><p>${report.explanation}</p>`;
+    html += `<p><b>Verdict:</b> ${cleanTextForExport(report.verdict)} (${report.confidence}% confidence)</p>`;
+    if (report.explanation) html += `<h2>Explanation</h2><p>${cleanTextForExport(report.explanation)}</p>`;
     const section = (title, items) => {
       if (!items || !items.length) return '';
-      return `<h2>${title}</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`;
+      return `<h2>${title}</h2><ul>${items.map((i) => `<li>${cleanTextForExport(i)}</li>`).join('')}</ul>`;
     };
     html += section('Evidence', report.evidence);
     html += section('Risks', report.risks);
@@ -103,7 +120,7 @@ const downloadWord = (report, queryText) => {
   if (report.sources && report.sources.length) {
     html += '<h2>Sources</h2><ul>';
     report.sources.forEach((s) => {
-      html += `<li><a href="${s.url}">${s.title}</a></li>`;
+      html += `<li><a href="${s.url}">${cleanTextForExport(s.title)}</a></li>`;
     });
     html += '</ul>';
   }
@@ -257,7 +274,6 @@ const Dashboard = ({ history, addToHistory }) => {
         .catch(() => setStatus('Something went wrong running the paid analysis.'))
         .finally(() => setLoading(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const scansRun = history.length;
