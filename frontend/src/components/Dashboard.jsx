@@ -106,8 +106,15 @@ const buildReportHtml = (report, queryText) => {
       .map(
         (s) =>
           `<li dir="auto" style="${LI_STYLE}">` +
-          `<a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(s.title)}</a>` +
-          `<br/><span style="font-size:11px;color:#6b7280;">${s.url}</span></li>`
+          `<div dir="auto"><a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(
+            s.title
+          )}</a></div>` +
+          // Force dir="ltr" on the URL itself: URLs are always left-to-right,
+          // and putting it in its own block (not sharing a line/bidi run with
+          // the Arabic title) stops the browser from visually interleaving
+          // the two scripts on one row.
+          `<div dir="ltr" style="font-size:11px;color:#6b7280;margin-top:2px;">${s.url}</div>` +
+          `</li>`
       )
       .join('');
     html += `<h2 style="${HEADING_STYLE}">Sources</h2><ul style="${LIST_STYLE}">${lis}</ul>`;
