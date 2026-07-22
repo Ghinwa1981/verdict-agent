@@ -44,28 +44,56 @@ const prepareText = (text) => escapeHtml(decodeEntities(text || ''));
 // Each block below is explicit display:block + clear:both + its own bottom
 // margin, so blocks can never visually overlap regardless of RTL/LTR content
 // mixing inside them.
-const BLOCK = 'display:block;clear:both;margin:0 0 14px;';
-const HEADING = `${BLOCK}font-size:15px;font-weight:700;margin-top:18px;`;
+// Hardcoded hex colors (not CSS var()) - the export renders in an isolated
+// overlay outside the app's normal styling context, and some browsers report
+// custom-property colors in formats html2canvas can't parse, so plain hex is
+// the safe choice here.
+const badgeColors = (confidence, verdict) => {
+  const v = (verdict || '').toLowerCase();
+  if (v.includes('unavailable') || v.includes('insufficient')) return { bg: '#6b7280', fg: '#ffffff' };
+  if (confidence >= 70) return { bg: '#16a34a', fg: '#ffffff' };
+  if (confidence >= 40) return { bg: '#d97706', fg: '#ffffff' };
+  return { bg: '#dc2626', fg: '#ffffff' };
+};
+
+const TITLE_ACCENT = '#4338ca';
+const HEADING_STYLE =
+  `display:block;font-size:14px;font-weight:700;margin:22px 0 10px;` +
+  `padding-bottom:5px;border-bottom:2px solid ${TITLE_ACCENT};color:#1e1b4b;`;
+const PARA_STYLE = 'display:block;margin:0 0 14px;';
+// list-style stays on the <ul> itself (not "display:block" tricks on <li>) so
+// the browser positions bullet markers normally and correctly flips sides
+// for RTL content instead of getting pushed out of place.
+const LIST_STYLE = 'margin:0 0 14px;padding-inline-start:22px;list-style:disc;';
+const LI_STYLE = 'margin:0 0 8px;';
 
 const buildReportHtml = (report, queryText) => {
-  let html = `<h1 style="${BLOCK}font-size:20px;">Verdict Report</h1>`;
-  html += `<p dir="auto" style="${BLOCK}"><b>Query:</b> ${prepareText(queryText)}</p>`;
+  let html = `<h1 style="display:block;font-size:22px;font-weight:800;margin:0 0 4px;color:#1e1b4b;">Verdict Report</h1>`;
+  html += `<div style="display:block;height:3px;width:56px;background:${TITLE_ACCENT};margin:0 0 20px;"></div>`;
+
+  html +=
+    `<div dir="auto" style="display:block;background:#f4f4f8;border-inline-start:4px solid ${TITLE_ACCENT};` +
+    `padding:10px 14px;margin:0 0 20px;border-radius:4px;"><b>Query:</b> ${prepareText(queryText)}</div>`;
 
   if (report.mode === 'answer') {
-    html += `<h2 style="${HEADING}">Answer</h2>`;
-    html += `<p dir="auto" style="${BLOCK}">${prepareText(report.answer)}</p>`;
+    html += `<h2 style="${HEADING_STYLE}">Answer</h2>`;
+    html += `<p dir="auto" style="${PARA_STYLE}">${prepareText(report.answer)}</p>`;
   } else {
-    html += `<p dir="auto" style="${BLOCK}"><b>Verdict:</b> ${prepareText(report.verdict)} (${report.confidence}% confidence)</p>`;
+    const { bg, fg } = badgeColors(report.confidence, report.verdict);
+    html +=
+      `<div dir="auto" style="display:inline-block;padding:7px 16px;border-radius:6px;` +
+      `font-weight:700;background:${bg};color:${fg};margin:0 0 16px;">` +
+      `${prepareText(report.verdict)} \u2014 ${report.confidence}%</div>`;
 
     if (report.explanation) {
-      html += `<h2 style="${HEADING}">Explanation</h2>`;
-      html += `<p dir="auto" style="${BLOCK}">${prepareText(report.explanation)}</p>`;
+      html += `<h2 style="${HEADING_STYLE}">Explanation</h2>`;
+      html += `<p dir="auto" style="${PARA_STYLE}">${prepareText(report.explanation)}</p>`;
     }
 
     const section = (title, items) => {
       if (!items || !items.length) return '';
-      const lis = items.map((i) => `<li dir="auto" style="clear:both;">${prepareText(i)}</li>`).join('');
-      return `<h2 style="${HEADING}">${title}</h2><ul style="${BLOCK}padding-inline-start:20px;">${lis}</ul>`;
+      const lis = items.map((i) => `<li dir="auto" style="${LI_STYLE}">${prepareText(i)}</li>`).join('');
+      return `<h2 style="${HEADING_STYLE}">${title}</h2><ul style="${LIST_STYLE}">${lis}</ul>`;
     };
 
     html += section('Evidence', report.evidence);
@@ -75,35 +103,50 @@ const buildReportHtml = (report, queryText) => {
 
   if (report.sources && report.sources.length) {
     const lis = report.sources
-      .map((s) => `<li dir="auto" style="clear:both;"><a href="${s.url}">${prepareText(s.title)}</a> - ${s.url}</li>`)
+      .map(
+        (s) =>
+          `<li dir="auto" style="${LI_STYLE}">` +
+          `<a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(s.title)}</a>` +
+          `<br/><span style="font-size:11px;color:#6b7280;">${s.url}</span></li>`
+      )
       .join('');
-    html += `<h2 style="${HEADING}">Sources</h2><ul style="${BLOCK}padding-inline-start:20px;">${lis}</ul>`;
+    html += `<h2 style="${HEADING_STYLE}">Sources</h2><ul style="${LIST_STYLE}">${lis}</ul>`;
   }
 
   return html;
 };
 
-// Font stack covers Latin, Arabic, and most other scripts via common
-// OS fonts (Segoe UI / Tahoma on Windows, system-ui elsewhere).
+// Web fonts loaded in index.html (Noto Sans family) come first so Chinese,
+// Hindi, and Arabic glyphs are guaranteed regardless of the user's OS.
+// System fonts stay as a fallback for the rare case fonts.googleapis.com is
+// unreachable (offline/blocked network).
 const REPORT_FONT_STACK =
-  '"Segoe UI","Noto Naskh Arabic","Noto Sans Arabic",Tahoma,Arial,system-ui,sans-serif';
+  '"Noto Sans","Noto Naskh Arabic","Noto Sans SC","Noto Sans Devanagari",' +
+  '"Segoe UI",Tahoma,Arial,system-ui,sans-serif';
 
 // Renders the report to an off-screen HTML element and lets html2pdf.js
 // (html2canvas + jsPDF under the hood) rasterize exactly what the browser
 // draws. Since the browser itself does the text shaping, this supports
 // Arabic, Hebrew, CJK, or anything else without extra font embedding.
 const downloadPdf = (report, queryText) => {
-  // Keep the node in normal document flow (top:0/left:0) instead of pushing it
-  // off-screen with a negative offset - html2canvas can miscalculate the
-  // capture rect for off-screen/scrolled content and produce a blank canvas.
-  // A very negative z-index keeps it invisible to the user (tucked behind the
-  // real page) without moving it out of the renderable viewport.
+  // html2canvas renders the whole page and crops to the target element's
+  // on-screen rect - so if anything else in the page visually occupies that
+  // same rect on top of it (sidebar, page background, etc.), html2canvas can
+  // capture THAT instead of our content, producing a blank/wrong result.
+  // A full-viewport, max-z-index overlay guarantees nothing else can ever be
+  // stacked above it, so the capture always matches our content exactly.
+  const overlay = document.createElement('div');
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;background:#fff;overflow:auto;';
+
   const container = document.createElement('div');
   container.style.cssText =
-    `position:absolute;top:0;left:0;width:700px;padding:24px;z-index:-1000;` +
+    `max-width:700px;margin:0 auto;padding:24px;` +
     `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;`;
   container.innerHTML = buildReportHtml(report, queryText);
-  document.body.insertBefore(container, document.body.firstChild);
+
+  overlay.appendChild(container);
+  document.body.appendChild(overlay);
 
   const cleanup = () => {
     // Wait an extra beat before removing the node: some html2pdf.js/jsPDF
@@ -111,24 +154,35 @@ const downloadPdf = (report, queryText) => {
     // actually finished the html2canvas capture, and removing the source
     // element too early makes the capture come out blank.
     setTimeout(() => {
-      if (container.parentNode) container.parentNode.removeChild(container);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     }, 1500);
   };
 
-  html2pdf()
-    .set({
-      margin: 12,
-      filename: 'verdict-report.pdf',
-      html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
-      jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
-    })
-    .from(container)
-    .save()
-    .then(cleanup)
-    .catch((err) => {
-      console.error('PDF export failed:', err);
-      cleanup();
-    });
+  const runExport = () => {
+    html2pdf()
+      .set({
+        margin: 12,
+        filename: 'verdict-report.pdf',
+        html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      })
+      .from(container)
+      .save()
+      .then(cleanup)
+      .catch((err) => {
+        console.error('PDF export failed:', err);
+        cleanup();
+      });
+  };
+
+  // Make sure the Noto web fonts (Arabic/Chinese/Devanagari) are fully loaded
+  // before capturing - otherwise the browser may still be showing fallback
+  // glyphs (or blank tofu boxes) the instant html2canvas takes its snapshot.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(runExport).catch(runExport);
+  } else {
+    runExport();
+  }
 };
 
 const downloadWord = (report, queryText) => {
