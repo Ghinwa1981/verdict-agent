@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import html2pdf from 'html2pdf.js';
+import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  ExternalHyperlink,
+} from 'docx';
 import { triggerAgent, createCheckoutSession, analyzePaid, fetchPrices } from '../api/apiService';
 
 const verdictColor = (confidence, verdict) => {
@@ -67,57 +76,140 @@ const PARA_STYLE = 'display:block;margin:0 0 14px;';
 const LIST_STYLE = 'margin:0 0 14px;padding-inline-start:22px;list-style:disc;';
 const LI_STYLE = 'margin:0 0 8px;';
 
-const buildReportHtml = (report, queryText) => {
-  let html = `<h1 style="display:block;font-size:22px;font-weight:800;margin:0 0 4px;color:#1e1b4b;">Verdict Report</h1>`;
-  html += `<div style="display:block;height:3px;width:56px;background:${TITLE_ACCENT};margin:0 0 20px;"></div>`;
+// dir="auto" only reorders bidi runs - it doesn't reliably force text-align,
+// so a right-to-left bullet marker could still end up paired with left-
+// aligned text. Detecting the script ourselves and setting dir + text-align
+// explicitly keeps the marker and the text on the same side every time.
+const RTL_REGEX = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
+const dirAttrs = (text) => {
+  const rtl = RTL_REGEX.test(text || '');
+  return { dir: rtl ? 'rtl' : 'ltr', align: rtl ? 'right' : 'left' };
+};
 
+// Fixed UI labels (headings, title) aren't run through per-string detection -
+// they're app text, not user content - so they need their own translation and
+// their own overall direction, based on the report's dominant language rather
+// than any single string.
+const LABELS = {
+  ar: {
+    title: 'تقرير الحكم',
+    query: 'السؤال:',
+    answer: 'الإجابة',
+    explanation: 'الشرح',
+    evidence: 'الأدلة',
+    risks: 'المخاطر',
+    nextSteps: 'الخطوات التالية',
+    sources: 'المصادر',
+  },
+  en: {
+    title: 'Verdict Report',
+    query: 'Query:',
+    answer: 'Answer',
+    explanation: 'Explanation',
+    evidence: 'Evidence',
+    risks: 'Risks',
+    nextSteps: 'Next steps',
+    sources: 'Sources',
+  },
+};
+
+// Majority-vote across the report's own content decides the overall language/
+// direction used for the fixed labels and page-level mirroring (title,
+// accent bar, heading alignment) - not just the query alone, in case the
+// query is short/ambiguous but the answer body is clearly one script.
+const reportLang = (report, queryText) => {
+  const sample = [
+    queryText,
+    report.answer,
+    report.verdict,
+    report.explanation,
+    ...(report.evidence || []),
+    ...(report.risks || []),
+    ...(report.next_steps || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
+  return RTL_REGEX.test(sample) ? 'ar' : 'en';
+};
+
+const buildReportHtml = (report, queryText) => {
+  const lang = reportLang(report, queryText);
+  const L = LABELS[lang];
+  const rtl = lang === 'ar';
+  const pageDir = rtl ? 'rtl' : 'ltr';
+  const pageAlign = rtl ? 'right' : 'left';
+
+  let html = `<h1 dir="${pageDir}" style="display:block;text-align:${pageAlign};font-size:22px;font-weight:800;margin:0 0 4px;color:#1e1b4b;">${L.title}</h1>`;
   html +=
-    `<div dir="auto" style="display:block;background:#f4f4f8;border-inline-start:4px solid ${TITLE_ACCENT};` +
-    `padding:10px 14px;margin:0 0 20px;border-radius:4px;"><b>Query:</b> ${prepareText(queryText)}</div>`;
+    `<div style="display:flex;justify-content:${rtl ? 'flex-end' : 'flex-start'};margin:0 0 20px;">` +
+    `<div style="height:3px;width:56px;background:${TITLE_ACCENT};"></div></div>`;
+
+  const q = dirAttrs(queryText);
+  html +=
+    `<div dir="${q.dir}" style="display:block;text-align:${q.align};background:#f4f4f8;border-inline-start:4px solid ${TITLE_ACCENT};` +
+    `padding:10px 14px;margin:0 0 20px;border-radius:4px;"><b>${L.query}</b> ${prepareText(queryText)}</div>`;
+
+  // Section headings follow the overall report language/direction, not each
+  // individual body string, since the heading text itself is fixed app copy.
+  const heading = (text) =>
+    `<h2 dir="${pageDir}" style="${HEADING_STYLE}text-align:${pageAlign};">${text}</h2>`;
 
   if (report.mode === 'answer') {
-    html += `<h2 style="${HEADING_STYLE}">Answer</h2>`;
-    html += `<p dir="auto" style="${PARA_STYLE}">${prepareText(report.answer)}</p>`;
+    html += heading(L.answer);
+    const a = dirAttrs(report.answer);
+    html += `<p dir="${a.dir}" style="${PARA_STYLE}text-align:${a.align};">${prepareText(report.answer)}</p>`;
   } else {
     const { bg, fg } = badgeColors(report.confidence, report.verdict);
+    const v = dirAttrs(report.verdict);
     html +=
-      `<div dir="auto" style="display:inline-block;padding:7px 16px;border-radius:6px;` +
+      `<div dir="${v.dir}" style="display:inline-block;padding:7px 16px;border-radius:6px;` +
       `font-weight:700;background:${bg};color:${fg};margin:0 0 16px;">` +
       `${prepareText(report.verdict)} \u2014 ${report.confidence}%</div>`;
 
     if (report.explanation) {
-      html += `<h2 style="${HEADING_STYLE}">Explanation</h2>`;
-      html += `<p dir="auto" style="${PARA_STYLE}">${prepareText(report.explanation)}</p>`;
+      html += heading(L.explanation);
+      const e = dirAttrs(report.explanation);
+      html += `<p dir="${e.dir}" style="${PARA_STYLE}text-align:${e.align};">${prepareText(report.explanation)}</p>`;
     }
 
     const section = (title, items) => {
       if (!items || !items.length) return '';
-      const lis = items.map((i) => `<li dir="auto" style="${LI_STYLE}">${prepareText(i)}</li>`).join('');
-      return `<h2 style="${HEADING_STYLE}">${title}</h2><ul style="${LIST_STYLE}">${lis}</ul>`;
+      const lis = items
+        .map((i) => {
+          const d = dirAttrs(i);
+          return `<li dir="${d.dir}" style="${LI_STYLE}text-align:${d.align};">${prepareText(i)}</li>`;
+        })
+        .join('');
+      // The <ul> itself takes the overall report direction so the bullet
+      // markers (padding-inline-start) sit on the same side as the heading
+      // above it, even if a specific item happens to be the other script.
+      return `${heading(title)}<ul dir="${pageDir}" style="${LIST_STYLE}">${lis}</ul>`;
     };
 
-    html += section('Evidence', report.evidence);
-    html += section('Risks', report.risks);
-    html += section('Next steps', report.next_steps);
+    html += section(L.evidence, report.evidence);
+    html += section(L.risks, report.risks);
+    html += section(L.nextSteps, report.next_steps);
   }
 
   if (report.sources && report.sources.length) {
     const lis = report.sources
-      .map(
-        (s) =>
-          `<li dir="auto" style="${LI_STYLE}">` +
-          `<div dir="auto"><a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(
+      .map((s) => {
+        const t = dirAttrs(s.title);
+        return (
+          `<li dir="${t.dir}" style="${LI_STYLE}text-align:${t.align};">` +
+          `<div dir="${t.dir}" style="text-align:${t.align};"><a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(
             s.title
           )}</a></div>` +
           // Force dir="ltr" on the URL itself: URLs are always left-to-right,
           // and putting it in its own block (not sharing a line/bidi run with
           // the Arabic title) stops the browser from visually interleaving
           // the two scripts on one row.
-          `<div dir="ltr" style="font-size:11px;color:#6b7280;margin-top:2px;">${s.url}</div>` +
+          `<div dir="ltr" style="text-align:left;font-size:11px;color:#6b7280;margin-top:2px;">${s.url}</div>` +
           `</li>`
-      )
+        );
+      })
       .join('');
-    html += `<h2 style="${HEADING_STYLE}">Sources</h2><ul style="${LIST_STYLE}">${lis}</ul>`;
+    html += `${heading(L.sources)}<ul dir="${pageDir}" style="${LIST_STYLE}">${lis}</ul>`;
   }
 
   return html;
@@ -192,19 +284,139 @@ const downloadPdf = (report, queryText) => {
   }
 };
 
-const downloadWord = (report, queryText) => {
-  const bodyHtml = buildReportHtml(report, queryText);
-  const html =
-    `<html dir="auto"><head><meta charset="utf-8"></head>` +
-    `<body style="font-family:${REPORT_FONT_STACK};">${bodyHtml}</body></html>`;
+// Detects Arabic/Hebrew (RTL script) text so each paragraph can get correct
+// right-to-left layout in Word - Word shapes the Arabic glyphs itself, but
+// paragraph direction/alignment still needs to be set explicitly per-paragraph
+// since content can mix RTL and LTR text in the same report.
+const isRTL = (text) => RTL_REGEX.test(text || '');
 
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'verdict-report.doc';
-  a.click();
-  URL.revokeObjectURL(url);
+const rtlParagraphProps = (text) => ({
+  bidirectional: isRTL(text),
+  alignment: isRTL(text) ? AlignmentType.RIGHT : AlignmentType.LEFT,
+});
+
+const textParagraph = (text) =>
+  new Paragraph({
+    ...rtlParagraphProps(text),
+    spacing: { after: 200 },
+    children: [new TextRun({ text: text || '' })],
+  });
+
+const headingParagraph = (title, rtl) =>
+  new Paragraph({
+    bidirectional: rtl,
+    alignment: rtl ? AlignmentType.RIGHT : AlignmentType.LEFT,
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 300, after: 150 },
+    children: [new TextRun({ text: title, bold: true, color: '4338CA' })],
+  });
+
+const bulletParagraph = (text) =>
+  new Paragraph({
+    ...rtlParagraphProps(text),
+    bullet: { level: 0 },
+    spacing: { after: 120 },
+    children: [new TextRun({ text: text || '' })],
+  });
+
+const buildReportDocChildren = (report, queryText) => {
+  const lang = reportLang(report, queryText);
+  const L = LABELS[lang];
+  const rtl = lang === 'ar';
+
+  const children = [
+    new Paragraph({
+      bidirectional: rtl,
+      alignment: rtl ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: L.title, bold: true, color: '1E1B4B' })],
+    }),
+    new Paragraph({
+      ...rtlParagraphProps(queryText),
+      spacing: { after: 300 },
+      children: [
+        new TextRun({ text: `${L.query} `, bold: true }),
+        new TextRun({ text: queryText || '' }),
+      ],
+    }),
+  ];
+
+  if (report.mode === 'answer') {
+    children.push(headingParagraph(L.answer, rtl));
+    children.push(textParagraph(report.answer));
+  } else {
+    children.push(
+      new Paragraph({
+        ...rtlParagraphProps(report.verdict),
+        spacing: { after: 200 },
+        children: [
+          new TextRun({ text: `${report.verdict || ''} \u2014 ${report.confidence}%`, bold: true, color: '16A34A' }),
+        ],
+      })
+    );
+
+    if (report.explanation) {
+      children.push(headingParagraph(L.explanation, rtl));
+      children.push(textParagraph(report.explanation));
+    }
+
+    const section = (title, items) => {
+      if (!items || !items.length) return;
+      children.push(headingParagraph(title, rtl));
+      items.forEach((i) => children.push(bulletParagraph(i)));
+    };
+
+    section(L.evidence, report.evidence);
+    section(L.risks, report.risks);
+    section(L.nextSteps, report.next_steps);
+  }
+
+  if (report.sources && report.sources.length) {
+    children.push(headingParagraph(L.sources, rtl));
+    report.sources.forEach((s) => {
+      children.push(
+        new Paragraph({
+          ...rtlParagraphProps(s.title),
+          bullet: { level: 0 },
+          spacing: { after: 40 },
+          children: [
+            new ExternalHyperlink({
+              link: s.url,
+              children: [new TextRun({ text: s.title || s.url, style: 'Hyperlink' })],
+            }),
+          ],
+        })
+      );
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          spacing: { after: 160 },
+          children: [new TextRun({ text: s.url, color: '6B7280', size: 18 })],
+        })
+      );
+    });
+  }
+
+  return children;
+};
+
+const downloadWord = (report, queryText) => {
+  // Builds a real .docx directly via the docx package - no HTML-to-Word
+  // conversion step, so it works in Word, WordPad, LibreOffice, Google Docs,
+  // and it's ESM-friendly (unlike html-docx-js, which breaks Vite's build).
+  const doc = new Document({
+    sections: [{ properties: {}, children: buildReportDocChildren(report, queryText) }],
+  });
+
+  Packer.toBlob(doc).then((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'verdict-report.docx';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 };
 
 const Dashboard = ({ history, addToHistory }) => {
