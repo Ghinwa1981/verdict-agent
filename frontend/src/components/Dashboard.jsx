@@ -70,11 +70,6 @@ const HEADING_STYLE =
   `display:block;font-size:14px;font-weight:700;margin:22px 0 10px;` +
   `padding-bottom:5px;border-bottom:2px solid ${TITLE_ACCENT};color:#1e1b4b;`;
 const PARA_STYLE = 'display:block;margin:0 0 14px;';
-// list-style stays on the <ul> itself (not "display:block" tricks on <li>) so
-// the browser positions bullet markers normally and correctly flips sides
-// for RTL content instead of getting pushed out of place.
-const LIST_STYLE = 'margin:0 0 14px;padding-inline-start:22px;list-style:disc;';
-const LI_STYLE = 'margin:0 0 8px;';
 
 // dir="auto" only reorders bidi runs - it doesn't reliably force text-align,
 // so a right-to-left bullet marker could still end up paired with left-
@@ -154,6 +149,17 @@ const buildReportHtml = (report, queryText) => {
   const heading = (text) =>
     `<h2 dir="${pageDir}" style="${HEADING_STYLE}text-align:${pageAlign};">${text}</h2>`;
 
+  // Built by hand instead of native <ul>/list-style bullets: html2canvas
+  // doesn't reliably reposition list markers for RTL direction, so a real
+  // browser would show the dot on the correct side but the rendered PDF
+  // wouldn't. A flex row (reversed for RTL) gives full manual control over
+  // which side the dot sits on regardless of html2canvas's list support.
+  const bulletRow = (contentHtml, itemRtl) =>
+    `<div style="display:flex;flex-direction:${itemRtl ? 'row-reverse' : 'row'};align-items:flex-start;gap:8px;margin:0 0 10px;">` +
+    `<span style="flex:0 0 auto;width:6px;height:6px;margin-top:7px;border-radius:50%;background:${TITLE_ACCENT};"></span>` +
+    `<div style="flex:1 1 auto;min-width:0;">${contentHtml}</div>` +
+    `</div>`;
+
   if (report.mode === 'answer') {
     html += heading(L.answer);
     const a = dirAttrs(report.answer);
@@ -174,16 +180,14 @@ const buildReportHtml = (report, queryText) => {
 
     const section = (title, items) => {
       if (!items || !items.length) return '';
-      const lis = items
+      const rows = items
         .map((i) => {
           const d = dirAttrs(i);
-          return `<li dir="${d.dir}" style="${LI_STYLE}text-align:${d.align};">${prepareText(i)}</li>`;
+          const text = `<span dir="${d.dir}" style="display:block;text-align:${d.align};">${prepareText(i)}</span>`;
+          return bulletRow(text, rtl);
         })
         .join('');
-      // The <ul> itself takes the overall report direction so the bullet
-      // markers (padding-inline-start) sit on the same side as the heading
-      // above it, even if a specific item happens to be the other script.
-      return `${heading(title)}<ul dir="${pageDir}" style="${LIST_STYLE}">${lis}</ul>`;
+      return `${heading(title)}<div style="margin:0 0 14px;">${rows}</div>`;
     };
 
     html += section(L.evidence, report.evidence);
@@ -192,24 +196,22 @@ const buildReportHtml = (report, queryText) => {
   }
 
   if (report.sources && report.sources.length) {
-    const lis = report.sources
+    const rows = report.sources
       .map((s) => {
         const t = dirAttrs(s.title);
-        return (
-          `<li dir="${t.dir}" style="${LI_STYLE}text-align:${t.align};">` +
+        const content =
           `<div dir="${t.dir}" style="text-align:${t.align};"><a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(
             s.title
           )}</a></div>` +
           // Force dir="ltr" on the URL itself: URLs are always left-to-right,
-          // and putting it in its own block (not sharing a line/bidi run with
-          // the Arabic title) stops the browser from visually interleaving
-          // the two scripts on one row.
-          `<div dir="ltr" style="text-align:left;font-size:11px;color:#6b7280;margin-top:2px;">${s.url}</div>` +
-          `</li>`
-        );
+          // and keeping it in its own block (not sharing a bidi run with the
+          // Arabic title) stops the browser from visually interleaving the
+          // two scripts on one row.
+          `<div dir="ltr" style="text-align:left;font-size:11px;color:#6b7280;margin-top:2px;">${s.url}</div>`;
+        return bulletRow(content, rtl);
       })
       .join('');
-    html += `${heading(L.sources)}<ul dir="${pageDir}" style="${LIST_STYLE}">${lis}</ul>`;
+    html += `${heading(L.sources)}<div style="margin:0 0 14px;">${rows}</div>`;
   }
 
   return html;
