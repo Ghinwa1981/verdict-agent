@@ -53,10 +53,13 @@ a { text-decoration: none; color: inherit; }
   display: flex;
   flex-direction: column;
   padding: 24px 20px;
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  width: var(--sidebar-w);
   height: 100vh;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 /* زر القائمة (Hamburger) - يظهر فقط عالموبايل */
@@ -267,6 +270,7 @@ a { text-decoration: none; color: inherit; }
     z-index: 50;
   }
   .sidebar.open { transform: translateX(0); }
+  .sidebar-inner { width: 100%; }
 
   .sidebar-backdrop.open {
     display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40;
