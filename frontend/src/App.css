@@ -20,10 +20,8 @@
 /* السماح بالتمرير العمودي ومنع التمرير الأفقي */
 html, body, #root { 
   min-height: 100vh; 
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-  overscroll-behavior-x: none;
+  width: 100%; 
+  overflow-x: hidden; 
   background: var(--canvas); 
   color: var(--text-main); 
   font-family: 'Inter', sans-serif; 
@@ -35,7 +33,7 @@ button, input, textarea { font: inherit; outline: none; border: none; background
 button { cursor: pointer; }
 a { text-decoration: none; color: inherit; }
 
-.app-shell { display: flex; min-height: 100vh; width: 100%; max-width: 100vw; overflow-x: hidden; }
+.app-shell { display: flex; min-height: 100vh; width: 100%; }
 
 /* القائمة الجانبية (Sidebar) - تثبيت ذكي (Sticky) لكي لا تنزل مع الصفحة */
 .sidebar { 
@@ -67,6 +65,48 @@ a { text-decoration: none; color: inherit; }
   display: none;
 }
 
+/* =========================================
+   MOBILE (<= 768px)
+   ========================================= */
+@media (max-width: 768px) {
+  .app-shell { flex-direction: column; }
+
+  .mobile-topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 16px; background: var(--surface);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 30;
+  }
+  .mobile-topbar .brand-text-mobile { font-weight: 800; font-size: 1.05rem; color: var(--text-main); }
+
+  .sidebar {
+    position: fixed; top: 0; left: 0; height: 100vh; width: 80vw; max-width: 300px;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 50;
+  }
+  .sidebar.open { transform: translateX(0); }
+
+  .sidebar-backdrop.open {
+    display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40;
+  }
+
+  .main-area { padding: 16px; }
+
+  .top-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .metrics-hero-row { flex-direction: column; align-items: stretch; }
+  .hero-graphic { display: none; }
+  .metrics-container { flex-direction: column; }
+  .metric-card { min-width: 0; }
+
+  .main-grid { grid-template-columns: 1fr; }
+  .depth-grid { grid-template-columns: repeat(2, 1fr); }
+  .depth-full { grid-column: span 2; }
+  .features-row { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 420px) {
+  .features-row { grid-template-columns: 1fr; }
+}
 .sidebar::before { content: ''; position: absolute; top: 30%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(0,212,160,0.05) 0%, transparent 60%); pointer-events: none; }
 .sidebar-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 40px; position: relative; z-index: 2; }
 .sidebar-logo { width: 36px; height: 36px; object-fit: contain; }
@@ -240,46 +280,3 @@ a { text-decoration: none; color: inherit; }
 .f-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .f-text h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; color: var(--text-main); }
 .f-text p { font-size: 0.75rem; color: var(--text-muted); line-height: 1.4; }
-/* =========================================
-   MOBILE (<= 768px) — لازم تضل هي آخر شي بالملف
-   عشان تفوز على كل القواعد الافتراضية اللي فوق
-   ========================================= */
-@media (max-width: 768px) {
-  .app-shell { flex-direction: column; }
-
-  .mobile-topbar {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 16px; background: var(--surface);
-    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 30;
-  }
-  .mobile-topbar .brand-text-mobile { font-weight: 800; font-size: 1.05rem; color: var(--text-main); }
-
-  .sidebar {
-    position: fixed; top: 0; left: 0; height: 100vh; width: 80vw; max-width: 300px;
-    transform: translateX(-100%);
-    transition: transform 0.25s ease;
-    z-index: 50;
-  }
-  .sidebar.open { transform: translateX(0); }
-
-  .sidebar-backdrop.open {
-    display: block; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40;
-  }
-
-  .main-area { padding: 16px; }
-
-  .top-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .metrics-hero-row { flex-direction: column; align-items: stretch; }
-  .hero-graphic { display: none; }
-  .metrics-container { flex-direction: column; }
-  .metric-card { min-width: 0; width: 100%; }
-
-  .main-grid { grid-template-columns: 1fr; }
-  .depth-grid { grid-template-columns: repeat(2, 1fr); }
-  .depth-full { grid-column: span 2; }
-  .features-row { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 420px) {
-  .features-row { grid-template-columns: 1fr; }
-}
