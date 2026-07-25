@@ -529,10 +529,9 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
           ))}
         </nav>
         <div className="upgrade-card">
-          <div className="upgrade-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
-          <h4>Upgrade your plan</h4>
-          <p>Unlock deeper analysis and advanced reports.</p>
-          <button className="upgrade-btn">View Plans</button>
+          <div className="upgrade-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
+          <h4>Live web search</h4>
+          <p>Every analysis is grounded in real-time results — not stale training data.</p>
         </div>
       </aside>
 
@@ -561,7 +560,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
           </div>
           <div className="user-dropdown">
             <div className="user-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
-            Welcome back!
+            Welcome!
           </div>
         </header>
 
@@ -616,7 +615,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
             )}
 
             <span className="input-label">Analysis depth (for reports)</span>
-            <div className="depth-grid">
+            <div className="depth-grid" id="depth-grid">
               {tiers.slice(0,3).map(t => (
                 <div key={t.id} className={`depth-card ${activeTier.id === t.id ? 'active' : ''}`} onClick={() => setActiveTier(t)}>
                   <svg className="d-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{t.icon}</svg>
