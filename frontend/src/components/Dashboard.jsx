@@ -424,6 +424,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
   const [dragActive, setDragActive] = useState(false);
   const [activeNav, setActiveNav] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [settingsStatus, setSettingsStatus] = useState('');
   
   // الباقات الجديدة
   const tiers = [
@@ -539,8 +540,24 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
       <main className="main-area">
         <header className="top-header">
           <div className="header-titles">
-            <h1>Analyze <span className="highlight">anything</span> before you <span className="highlight">decide</span></h1>
-            <p>Get a verdict-backed by evidence, risks, and concrete next steps.</p>
+            {activeNav === 'dashboard' && (
+              <>
+                <h1>Analyze <span className="highlight">anything</span> before you <span className="highlight">decide</span></h1>
+                <p>Get a verdict-backed by evidence, risks, and concrete next steps.</p>
+              </>
+            )}
+            {activeNav === 'logs' && (
+              <>
+                <h1>Analysis <span className="highlight">Logs</span></h1>
+                <p>Every analysis you've run this session, most recent first. Nothing here is saved on a server.</p>
+              </>
+            )}
+            {activeNav === 'settings' && (
+              <>
+                <h1><span className="highlight">Settings</span></h1>
+                <p>Basic info about this instance. No account system yet — everything runs locally per session.</p>
+              </>
+            )}
           </div>
           <div className="user-dropdown">
             <div className="user-avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
@@ -548,6 +565,8 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
           </div>
         </header>
 
+        {activeNav === 'dashboard' && (
+        <>
         <div className="metrics-hero-row">
           <div className="metrics-container">
             <div className="metric-card">
@@ -720,6 +739,76 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
             <div className="f-text"><h4>Secure & Private</h4><p>Your data is encrypted and never shared.</p></div>
           </div>
         </div>
+        </>
+        )}
+
+        {activeNav === 'logs' && (
+          <div className="panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                Analysis Logs
+              </div>
+            </div>
+            {!history.length ? (
+              <div className="empty-state">
+                <h3>No analyses yet</h3>
+                <p>Run one from the Dashboard and it'll show up here.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {history.map((h) => {
+                  const hasScore = typeof h.confidence === 'number';
+                  const color = hasScore ? verdictColor(h.confidence, h.verdict) : 'var(--text-muted)';
+                  return (
+                    <div key={h.id} className="report-section" style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <div className="stamp" style={{ width: 48, height: 48, borderColor: color, flexShrink: 0 }}>
+                        <span className="num" style={{ fontSize: '0.9rem', color }}>{hasScore ? h.confidence : '?'}</span>
+                      </div>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <p style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-main)' }}>{h.query}</p>
+                        <p className="summary">{h.mode === 'answer' ? 'Direct answer' : (h.verdict || '')}{h.tier ? ` · ${h.tier} tier` : ''}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeNav === 'settings' && (
+          <div className="panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c0 .72.5 1.35 1.2 1.51H21a2 2 0 110 4h-.09c-.7.16-1.2.79-1.2 1.51z"/></svg>
+                Backend connection
+              </div>
+            </div>
+            <p className="panel-desc">The frontend talks to this address for every analysis.</p>
+            <p style={{ fontFamily: 'IBM Plex Mono, monospace', fontSize: 13, color: 'var(--text-muted)', marginBottom: 14 }}>
+              {import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000'}
+            </p>
+            <button
+              className="btn-secondary"
+              style={{ maxWidth: 220, marginBottom: 10 }}
+              onClick={async () => {
+                setSettingsStatus('Checking...');
+                try {
+                  const base = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+                  const res = await fetch(`${base}/health`);
+                  const json = await res.json();
+                  setSettingsStatus(json.ok ? 'Connected (OK)' : 'Unexpected response');
+                } catch {
+                  setSettingsStatus('Could not reach the backend.');
+                }
+              }}
+            >
+              Test connection
+            </button>
+            {settingsStatus && <p className="summary">{settingsStatus}</p>}
+          </div>
+        )}
 
       </main>
     </div>
