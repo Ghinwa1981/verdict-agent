@@ -2,11 +2,17 @@
 
 import base64
 import io
+import time
 
 from ddgs import DDGS
 from pypdf import PdfReader
 
 from .base import DEPTH_COUNTS
+
+# كاش بسيط بالذاكرة: نفس السؤال (نفس النص + نفس عدد النتائج) ما بيعيد البحث
+# من جديد إذا انسأل خلال آخر 10 دقائق. بيوفر وقت كتير للأسئلة المتكررة.
+_SEARCH_CACHE = {}
+_CACHE_TTL_SECONDS = 600
 
 
 class ResearchAgent:
@@ -34,10 +40,18 @@ class ResearchAgent:
         }
 
     def _web_search(self, query: str, max_results: int = 5) -> list:
+        cache_key = (query.strip().lower(), max_results)
+        cached = _SEARCH_CACHE.get(cache_key)
+        if cached and (time.time() - cached[0]) < _CACHE_TTL_SECONDS:
+            print(f"[ResearchAgent] cache hit for: {query[:80]}")
+            return cached[1]
+
         try:
-            with DDGS() as ddgs:
+            # timeout=10: بلاها كانت ممكن تعلق لدقايق بدون أي رد إذا DuckDuckGo بطيء
+            with DDGS(timeout=10) as ddgs:
                 results = list(ddgs.text(query, max_results=max_results))
             print(f"[ResearchAgent] {len(results)} result(s) for: {query[:80]}")
+            _SEARCH_CACHE[cache_key] = (time.time(), results)
             return results
         except Exception as e:
             print(f"[ResearchAgent] web search failed: {e}")
