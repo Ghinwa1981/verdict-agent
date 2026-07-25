@@ -185,6 +185,6 @@ def get_verifications():
         return json.load(f)
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health():
     return {"ok": True}
