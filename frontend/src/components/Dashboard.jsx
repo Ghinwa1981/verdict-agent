@@ -296,30 +296,67 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
               </div>
             ) : (
               <div className="report-content">
-                <div className="verdict-row">
-                  <div className="stamp" style={{ borderColor: verdictColor(data.confidence, data.verdict) }}>
-                    <span className="num" style={{ color: verdictColor(data.confidence, data.verdict) }}>{data.confidence || '-'}</span>
-                    <span className="of">conf</span>
-                  </div>
-                  <div>
-                    <p className="verdict-text" style={{ color: verdictColor(data.confidence, data.verdict) }}>{data.verdict}</p>
-                    {data.explanation && <p className="summary">{data.explanation}</p>}
-                  </div>
-                </div>
+                {data.mode === 'answer' ? (
+                  <>
+                    <div className="report-section" style={{ borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }}>
+                      <h4 style={{ color: '#10B981' }}>Answer</h4>
+                      <p className="summary" style={{ marginTop: 6 }}>{data.answer}</p>
+                    </div>
+                    {data.sources && data.sources.length > 0 && (
+                      <div className="report-section">
+                        <h4>Sources</h4>
+                        <ul>
+                          {data.sources.map((s, i) => (
+                            <li key={i}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="verdict-row">
+                      <div className="stamp" style={{ borderColor: verdictColor(data.confidence, data.verdict) }}>
+                        <span className="num" style={{ color: verdictColor(data.confidence, data.verdict) }}>{data.confidence ?? '-'}</span>
+                        <span className="of">conf</span>
+                      </div>
+                      <div>
+                        <p className="verdict-text" style={{ color: verdictColor(data.confidence, data.verdict) }}>{data.verdict}</p>
+                        {data.explanation && <p className="summary">{data.explanation}</p>}
+                      </div>
+                    </div>
 
-                {data.evidence && data.evidence.length > 0 && (
-                  <div className="report-section" style={{ borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }}>
-                    <h4 style={{ color: '#10B981' }}>✓ Evidence</h4>
-                    <ul>{data.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
-                  </div>
+                    {data.evidence && data.evidence.length > 0 && (
+                      <div className="report-section" style={{ borderColor: '#A7F3D0', backgroundColor: '#ECFDF5' }}>
+                        <h4 style={{ color: '#10B981' }}>✓ Evidence</h4>
+                        <ul>{data.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
+                      </div>
+                    )}
+                    {data.risks && data.risks.length > 0 && (
+                      <div className="report-section" style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}>
+                        <h4 style={{ color: '#EF4444' }}>! Risks</h4>
+                        <ul>{data.risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
+                      </div>
+                    )}
+                    {data.next_steps && data.next_steps.length > 0 && (
+                      <div className="report-section" style={{ borderColor: '#BFDBFE', backgroundColor: '#EFF6FF' }}>
+                        <h4 style={{ color: '#3B82F6' }}>→ Next Steps</h4>
+                        <ul>{data.next_steps.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                      </div>
+                    )}
+                    {data.sources && data.sources.length > 0 && (
+                      <div className="report-section">
+                        <h4>Sources</h4>
+                        <ul>
+                          {data.sources.map((s, i) => (
+                            <li key={i}><a href={s.url} target="_blank" rel="noopener noreferrer">{s.title || s.url}</a></li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </>
                 )}
-                {data.risks && data.risks.length > 0 && (
-                  <div className="report-section" style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2' }}>
-                    <h4 style={{ color: '#EF4444' }}>! Risks</h4>
-                    <ul>{data.risks.map((r, i) => <li key={i}>{r}</li>)}</ul>
-                  </div>
-                )}
-                
+
                 <div className="report-actions">
                   <button className="btn-secondary" onClick={() => downloadPdf(data, inputText)}>Download PDF</button>
                   <button className="btn-secondary" onClick={() => downloadWord(data, inputText)}>Download Word</button>
