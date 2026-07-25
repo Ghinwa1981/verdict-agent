@@ -20,8 +20,10 @@
 /* السماح بالتمرير العمودي ومنع التمرير الأفقي */
 html, body, #root { 
   min-height: 100vh; 
-  width: 100%; 
-  overflow-x: hidden; 
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
   background: var(--canvas); 
   color: var(--text-main); 
   font-family: 'Inter', sans-serif; 
@@ -33,7 +35,7 @@ button, input, textarea { font: inherit; outline: none; border: none; background
 button { cursor: pointer; }
 a { text-decoration: none; color: inherit; }
 
-.app-shell { display: flex; min-height: 100vh; width: 100%; }
+.app-shell { display: flex; min-height: 100vh; width: 100%; max-width: 100vw; overflow-x: hidden; }
 
 /* القائمة الجانبية (Sidebar) - تثبيت ذكي (Sticky) لكي لا تنزل مع الصفحة */
 .sidebar { 
