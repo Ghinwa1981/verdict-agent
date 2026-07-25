@@ -1,0 +1,194 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=Noto+Naskh+Arabic:wght@400;500;600;700&display=swap');
+
+/* =========================================================
+   VERDICT — GLOBAL DESIGN TOKENS
+   ========================================================= */
+
+:root {
+  /* Brand */
+  --ink: #172554;
+  --ink-2: #1E2A5A;
+  --ink-3: #26356E;
+  --ink-muted: #8D9BC5;
+
+  /* Backgrounds */
+  --canvas: #F7F9FC;
+  --surface: #FFFFFF;
+  --surface-soft: #FAFBFF;
+
+  /* Primary */
+  --accent: #4F46E5;
+  --accent-dark: #3730A3;
+  --accent-light: #818CF8;
+  --accent-bg: #EEF2FF;
+
+  /* Secondary */
+  --purple: #7C3AED;
+  --purple-bg: #F3E8FF;
+
+  /* Mint */
+  --mint: #0F9D6B;
+  --mint-light: #2DD4BF;
+  --success: #0F9D6B;
+  --success-bg: #ECFDF5;
+  --success-text: #065F46;
+
+  /* Warning */
+  --warning: #D97706;
+  --warning-bg: #FFFBEB;
+
+  /* Danger */
+  --danger: #DC2626;
+  --danger-bg: #FEF2F2;
+  --danger-text: #991B1B;
+
+  /* Text */
+  --text: #172554;
+  --text-muted: #71809F;
+  --text-soft: #94A3B8;
+
+  /* Borders */
+  --line: #E2E8F0;
+  --line-soft: #EDF1F7;
+
+  /* Radius */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 22px;
+
+  /* Shadows */
+  --shadow-sm:
+    0 4px 16px rgba(30, 41, 59, 0.04);
+
+  --shadow-md:
+    0 10px 35px rgba(30, 41, 59, 0.06);
+
+  --shadow-lg:
+    0 20px 55px rgba(30, 41, 59, 0.09);
+}
+
+/* =========================================================
+   RESET
+   ========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  min-height: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(99, 102, 241, 0.035),
+      transparent 28%
+    ),
+    var(--canvas);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+textarea,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.2);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  margin: 0;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+/* =========================================================
+   SCROLLBAR
+   ========================================================= */
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 999px;
+  border: 2px solid #F1F5F9;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* =========================================================
+   RTL / MULTILINGUAL SUPPORT
+   ========================================================= */
+
+[dir='rtl'] {
+  font-family:
+    'Noto Naskh Arabic',
+    'Inter',
+    sans-serif;
+}
+
+[dir='rtl'] textarea,
+[dir='rtl'] input {
+  text-align: right;
+}
+
+[dir='rtl'] .sidebar {
+  direction: rtl;
+}
+
+[dir='rtl'] .main {
+  direction: rtl;
+}
+
+/* =========================================================
+   SELECTION
+   ========================================================= */
+
+::selection {
+  background: rgba(99, 102, 241, 0.18);
+  color: #172554;
+}
