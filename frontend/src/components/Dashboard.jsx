@@ -509,6 +509,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
 
       {/* 1. القائمة الجانبية (الداكنة الفاخرة) */}
       <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
+        <div className="sidebar-inner">
         <div className="sidebar-brand">
           <img src="/Verdict.png" alt="Verdict" className="sidebar-logo" />
           <div className="brand-text">
@@ -532,6 +533,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
           <div className="upgrade-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>
           <h4>Live web search</h4>
           <p>Every analysis is grounded in real-time results — not stale training data.</p>
+        </div>
         </div>
       </aside>
 
