@@ -15,6 +15,10 @@ const verdictColor = (confidence, verdict) => {
 // ==========================================
 // دوال التوليد والـ Export (نفسها الخاصة بك)
 // ==========================================
+// Decode any existing HTML entities (e.g. text that already went through an
+// HTML-escaping step upstream), then re-escape it safely for embedding in an
+// HTML string. Works for ANY language/script since it only touches &, <, >, " '
+// and never assumes a particular alphabet or byte width.
 const decodeEntities = (text) => {
   if (!text) return '';
   const el = document.createElement('textarea');
@@ -22,9 +26,26 @@ const decodeEntities = (text) => {
   return el.value;
 };
 
-const escapeHtml = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+const escapeHtml = (text) =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
 const prepareText = (text) => escapeHtml(decodeEntities(text || ''));
 
+// Builds the report body as real HTML. `dir="auto"` lets the browser apply the
+// Unicode bidi algorithm per element, so Arabic/Hebrew/English/anything else
+// gets correct direction and shaping automatically - no manual font/RTL work.
+// Each block below is explicit display:block + clear:both + its own bottom
+// margin, so blocks can never visually overlap regardless of RTL/LTR content
+// mixing inside them.
+// Hardcoded hex colors (not CSS var()) - the export renders in an isolated
+// overlay outside the app's normal styling context, and some browsers report
+// custom-property colors in formats html2canvas can't parse, so plain hex is
+// the safe choice here.
 const badgeColors = (confidence, verdict) => {
   const v = (verdict || '').toLowerCase();
   if (v.includes('unavailable') || v.includes('insufficient')) return { bg: '#6b7280', fg: '#ffffff' };
@@ -33,43 +54,358 @@ const badgeColors = (confidence, verdict) => {
   return { bg: '#dc2626', fg: '#ffffff' };
 };
 
+const TITLE_ACCENT = '#4338ca';
+const HEADING_STYLE =
+  `display:block;font-size:14px;font-weight:700;margin:22px 0 10px;` +
+  `padding-bottom:5px;border-bottom:2px solid ${TITLE_ACCENT};color:#1e1b4b;`;
+const PARA_STYLE = 'display:block;margin:0 0 14px;';
+
+// dir="auto" only reorders bidi runs - it doesn't reliably force text-align,
+// so a right-to-left bullet marker could still end up paired with left-
+// aligned text. Detecting the script ourselves and setting dir + text-align
+// explicitly keeps the marker and the text on the same side every time.
 const RTL_REGEX = /[\u0591-\u07FF\uFB1D-\uFDFD\uFE70-\uFEFC]/;
 const dirAttrs = (text) => {
   const rtl = RTL_REGEX.test(text || '');
   return { dir: rtl ? 'rtl' : 'ltr', align: rtl ? 'right' : 'left' };
 };
 
+// Fixed UI labels (headings, title) aren't run through per-string detection -
+// they're app text, not user content - so they need their own translation and
+// their own overall direction, based on the report's dominant language rather
+// than any single string.
+const LABELS = {
+  ar: {
+    title: 'تقرير الحكم',
+    query: 'السؤال:',
+    answer: 'الإجابة',
+    explanation: 'الشرح',
+    evidence: 'الأدلة',
+    risks: 'المخاطر',
+    nextSteps: 'الخطوات التالية',
+    sources: 'المصادر',
+  },
+  en: {
+    title: 'Verdict Report',
+    query: 'Query:',
+    answer: 'Answer',
+    explanation: 'Explanation',
+    evidence: 'Evidence',
+    risks: 'Risks',
+    nextSteps: 'Next steps',
+    sources: 'Sources',
+  },
+};
+
+// Majority-vote across the report's own content decides the overall language/
+// direction used for the fixed labels and page-level mirroring (title,
+// accent bar, heading alignment) - not just the query alone, in case the
+// query is short/ambiguous but the answer body is clearly one script.
 const reportLang = (report, queryText) => {
-  const sample = [queryText, report.answer, report.verdict, report.explanation, ...(report.evidence || []), ...(report.risks || []), ...(report.next_steps || [])].filter(Boolean).join(' ');
+  const sample = [
+    queryText,
+    report.answer,
+    report.verdict,
+    report.explanation,
+    ...(report.evidence || []),
+    ...(report.risks || []),
+    ...(report.next_steps || []),
+  ]
+    .filter(Boolean)
+    .join(' ');
   return RTL_REGEX.test(sample) ? 'ar' : 'en';
 };
 
 const buildReportHtml = (report, queryText) => {
-  // المبسط للـ PDF (كما هو في كودك)
-  let html = `<h1 style="font-family:sans-serif;color:#1e1b4b;">Verdict Report</h1>`;
-  html += `<div style="background:#f4f4f8;padding:10px;margin-bottom:20px;"><b>Query:</b> ${prepareText(queryText)}</div>`;
+  const lang = reportLang(report, queryText);
+  const L = LABELS[lang];
+  const rtl = lang === 'ar';
+  const pageDir = rtl ? 'rtl' : 'ltr';
+  const pageAlign = rtl ? 'right' : 'left';
+
+  let html = `<h1 dir="${pageDir}" style="display:block;text-align:${pageAlign};font-size:22px;font-weight:800;margin:0 0 4px;color:#1e1b4b;">${L.title}</h1>`;
+  html +=
+    `<div style="display:flex;justify-content:${rtl ? 'flex-end' : 'flex-start'};margin:0 0 20px;">` +
+    `<div style="height:3px;width:56px;background:${TITLE_ACCENT};"></div></div>`;
+
+  const q = dirAttrs(queryText);
+  html +=
+    `<div dir="${q.dir}" style="display:block;text-align:${q.align};background:#f4f4f8;border-inline-start:4px solid ${TITLE_ACCENT};` +
+    `padding:10px 14px;margin:0 0 20px;border-radius:4px;"><b>${L.query}</b> ${prepareText(queryText)}</div>`;
+
+  // Section headings follow the overall report language/direction, not each
+  // individual body string, since the heading text itself is fixed app copy.
+  const heading = (text) =>
+    `<h2 dir="${pageDir}" style="${HEADING_STYLE}text-align:${pageAlign};">${text}</h2>`;
+
+  // Built by hand instead of native <ul>/list-style bullets: html2canvas
+  // doesn't reliably reposition list markers for RTL direction, so a real
+  // browser would show the dot on the correct side but the rendered PDF
+  // wouldn't. A flex row (reversed for RTL) gives full manual control over
+  // which side the dot sits on regardless of html2canvas's list support.
+  const bulletRow = (contentHtml, itemRtl) =>
+    `<div style="display:flex;flex-direction:${itemRtl ? 'row-reverse' : 'row'};align-items:flex-start;gap:8px;margin:0 0 10px;">` +
+    `<span style="flex:0 0 auto;width:6px;height:6px;margin-top:7px;border-radius:50%;background:${TITLE_ACCENT};"></span>` +
+    `<div style="flex:1 1 auto;min-width:0;">${contentHtml}</div>` +
+    `</div>`;
+
   if (report.mode === 'answer') {
-    html += `<p>${prepareText(report.answer)}</p>`;
+    html += heading(L.answer);
+    const a = dirAttrs(report.answer);
+    html += `<p dir="${a.dir}" style="${PARA_STYLE}text-align:${a.align};">${prepareText(report.answer)}</p>`;
   } else {
-    html += `<h2>Verdict: ${prepareText(report.verdict)} - ${report.confidence}%</h2>`;
-    if (report.explanation) html += `<p>${prepareText(report.explanation)}</p>`;
+    const { bg, fg } = badgeColors(report.confidence, report.verdict);
+    const v = dirAttrs(report.verdict);
+    html +=
+      `<div dir="${v.dir}" style="display:inline-block;padding:7px 16px;border-radius:6px;` +
+      `font-weight:700;background:${bg};color:${fg};margin:0 0 16px;">` +
+      `${prepareText(report.verdict)} \u2014 ${report.confidence}%</div>`;
+
+    if (report.explanation) {
+      html += heading(L.explanation);
+      const e = dirAttrs(report.explanation);
+      html += `<p dir="${e.dir}" style="${PARA_STYLE}text-align:${e.align};">${prepareText(report.explanation)}</p>`;
+    }
+
+    const section = (title, items) => {
+      if (!items || !items.length) return '';
+      const rows = items
+        .map((i) => {
+          const d = dirAttrs(i);
+          const text = `<span dir="${d.dir}" style="display:block;text-align:${d.align};">${prepareText(i)}</span>`;
+          return bulletRow(text, rtl);
+        })
+        .join('');
+      return `${heading(title)}<div style="margin:0 0 14px;">${rows}</div>`;
+    };
+
+    html += section(L.evidence, report.evidence);
+    html += section(L.risks, report.risks);
+    html += section(L.nextSteps, report.next_steps);
   }
+
+  if (report.sources && report.sources.length) {
+    const rows = report.sources
+      .map((s) => {
+        const t = dirAttrs(s.title);
+        const content =
+          `<div dir="${t.dir}" style="text-align:${t.align};"><a href="${s.url}" style="color:${TITLE_ACCENT};text-decoration:underline;">${prepareText(
+            s.title
+          )}</a></div>` +
+          // Force dir="ltr" on the URL itself: URLs are always left-to-right,
+          // and keeping it in its own block (not sharing a bidi run with the
+          // Arabic title) stops the browser from visually interleaving the
+          // two scripts on one row.
+          `<div dir="ltr" style="text-align:left;font-size:11px;color:#6b7280;margin-top:2px;">${s.url}</div>`;
+        return bulletRow(content, rtl);
+      })
+      .join('');
+    html += `${heading(L.sources)}<div style="margin:0 0 14px;">${rows}</div>`;
+  }
+
   return html;
 };
 
+// Web fonts loaded in index.html (Noto Sans family) come first so Chinese,
+// Hindi, and Arabic glyphs are guaranteed regardless of the user's OS.
+// System fonts stay as a fallback for the rare case fonts.googleapis.com is
+// unreachable (offline/blocked network).
+const REPORT_FONT_STACK =
+  '"Noto Sans","Noto Naskh Arabic","Noto Sans SC","Noto Sans Devanagari",' +
+  '"Segoe UI",Tahoma,Arial,system-ui,sans-serif';
+
+// Renders the report to an off-screen HTML element and lets html2pdf.js
+// (html2canvas + jsPDF under the hood) rasterize exactly what the browser
+// draws. Since the browser itself does the text shaping, this supports
+// Arabic, Hebrew, CJK, or anything else without extra font embedding.
 const downloadPdf = (report, queryText) => {
+  // html2canvas renders the whole page and crops to the target element's
+  // on-screen rect - so if anything else in the page visually occupies that
+  // same rect on top of it (sidebar, page background, etc.), html2canvas can
+  // capture THAT instead of our content, producing a blank/wrong result.
+  // A full-viewport, max-z-index overlay guarantees nothing else can ever be
+  // stacked above it, so the capture always matches our content exactly.
+  const overlay = document.createElement('div');
+  overlay.style.cssText =
+    'position:fixed;inset:0;z-index:2147483647;background:#fff;overflow:auto;';
+
   const container = document.createElement('div');
-  container.style.cssText = `max-width:700px;margin:0 auto;padding:24px;font-family:sans-serif;color:#111;background:#fff;`;
+  container.style.cssText =
+    `max-width:700px;margin:0 auto;padding:24px;` +
+    `font-family:${REPORT_FONT_STACK};font-size:13px;line-height:1.7;color:#111;background:#fff;`;
   container.innerHTML = buildReportHtml(report, queryText);
-  html2pdf().set({ margin: 12, filename: 'verdict-report.pdf', html2canvas: { scale: 2 }, jsPDF: { unit: 'pt', format: 'a4' } }).from(container).save();
+
+  overlay.appendChild(container);
+  document.body.appendChild(overlay);
+
+  const cleanup = () => {
+    // Wait an extra beat before removing the node: some html2pdf.js/jsPDF
+    // versions resolve save()'s promise slightly before the browser has
+    // actually finished the html2canvas capture, and removing the source
+    // element too early makes the capture come out blank.
+    setTimeout(() => {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    }, 1500);
+  };
+
+  const runExport = () => {
+    html2pdf()
+      .set({
+        margin: 12,
+        filename: 'verdict-report.pdf',
+        html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      })
+      .from(container)
+      .save()
+      .then(cleanup)
+      .catch((err) => {
+        console.error('PDF export failed:', err);
+        cleanup();
+      });
+  };
+
+  // Make sure the Noto web fonts (Arabic/Chinese/Devanagari) are fully loaded
+  // before capturing - otherwise the browser may still be showing fallback
+  // glyphs (or blank tofu boxes) the instant html2canvas takes its snapshot.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(runExport).catch(runExport);
+  } else {
+    runExport();
+  }
+};
+
+// Detects Arabic/Hebrew (RTL script) text so each paragraph can get correct
+// right-to-left layout in Word - Word shapes the Arabic glyphs itself, but
+// paragraph direction/alignment still needs to be set explicitly per-paragraph
+// since content can mix RTL and LTR text in the same report.
+const isRTL = (text) => RTL_REGEX.test(text || '');
+
+const rtlParagraphProps = (text) => ({
+  bidirectional: isRTL(text),
+  alignment: isRTL(text) ? AlignmentType.RIGHT : AlignmentType.LEFT,
+});
+
+const textParagraph = (text) =>
+  new Paragraph({
+    ...rtlParagraphProps(text),
+    spacing: { after: 200 },
+    children: [new TextRun({ text: text || '' })],
+  });
+
+const headingParagraph = (title, rtl) =>
+  new Paragraph({
+    bidirectional: rtl,
+    alignment: rtl ? AlignmentType.RIGHT : AlignmentType.LEFT,
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 300, after: 150 },
+    children: [new TextRun({ text: title, bold: true, color: '4338CA' })],
+  });
+
+const bulletParagraph = (text) =>
+  new Paragraph({
+    ...rtlParagraphProps(text),
+    bullet: { level: 0 },
+    spacing: { after: 120 },
+    children: [new TextRun({ text: text || '' })],
+  });
+
+const buildReportDocChildren = (report, queryText) => {
+  const lang = reportLang(report, queryText);
+  const L = LABELS[lang];
+  const rtl = lang === 'ar';
+
+  const children = [
+    new Paragraph({
+      bidirectional: rtl,
+      alignment: rtl ? AlignmentType.RIGHT : AlignmentType.LEFT,
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 200 },
+      children: [new TextRun({ text: L.title, bold: true, color: '1E1B4B' })],
+    }),
+    new Paragraph({
+      ...rtlParagraphProps(queryText),
+      spacing: { after: 300 },
+      children: [
+        new TextRun({ text: `${L.query} `, bold: true }),
+        new TextRun({ text: queryText || '' }),
+      ],
+    }),
+  ];
+
+  if (report.mode === 'answer') {
+    children.push(headingParagraph(L.answer, rtl));
+    children.push(textParagraph(report.answer));
+  } else {
+    children.push(
+      new Paragraph({
+        ...rtlParagraphProps(report.verdict),
+        spacing: { after: 200 },
+        children: [
+          new TextRun({ text: `${report.verdict || ''} \u2014 ${report.confidence}%`, bold: true, color: '16A34A' }),
+        ],
+      })
+    );
+
+    if (report.explanation) {
+      children.push(headingParagraph(L.explanation, rtl));
+      children.push(textParagraph(report.explanation));
+    }
+
+    const section = (title, items) => {
+      if (!items || !items.length) return;
+      children.push(headingParagraph(title, rtl));
+      items.forEach((i) => children.push(bulletParagraph(i)));
+    };
+
+    section(L.evidence, report.evidence);
+    section(L.risks, report.risks);
+    section(L.nextSteps, report.next_steps);
+  }
+
+  if (report.sources && report.sources.length) {
+    children.push(headingParagraph(L.sources, rtl));
+    report.sources.forEach((s) => {
+      children.push(
+        new Paragraph({
+          ...rtlParagraphProps(s.title),
+          bullet: { level: 0 },
+          spacing: { after: 40 },
+          children: [
+            new ExternalHyperlink({
+              link: s.url,
+              children: [new TextRun({ text: s.title || s.url, style: 'Hyperlink' })],
+            }),
+          ],
+        })
+      );
+      children.push(
+        new Paragraph({
+          alignment: AlignmentType.LEFT,
+          spacing: { after: 160 },
+          children: [new TextRun({ text: s.url, color: '6B7280', size: 18 })],
+        })
+      );
+    });
+  }
+
+  return children;
 };
 
 const downloadWord = (report, queryText) => {
-  const doc = new Document({ sections: [{ properties: {}, children: [new Paragraph({ children: [new TextRun("Verdict Report")] })] }] });
+  // Builds a real .docx directly via the docx package - no HTML-to-Word
+  // conversion step, so it works in Word, WordPad, LibreOffice, Google Docs,
+  // and it's ESM-friendly (unlike html-docx-js, which breaks Vite's build).
+  const doc = new Document({
+    sections: [{ properties: {}, children: buildReportDocChildren(report, queryText) }],
+  });
+
   Packer.toBlob(doc).then((blob) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'verdict-report.docx'; a.click();
+    a.href = url;
+    a.download = 'verdict-report.docx';
+    a.click();
     URL.revokeObjectURL(url);
   });
 };
