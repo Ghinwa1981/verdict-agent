@@ -87,6 +87,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [dragActive, setDragActive] = useState(false);
   const [activeNav, setActiveNav] = useState('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // الباقات الجديدة
   const tiers = [
@@ -156,9 +157,21 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
 
   return (
     <div className="app-shell">
-      
+
+      {/* شريط علوي يظهر فقط عالموبايل، فيه زر فتح القائمة */}
+      <div className="mobile-topbar">
+        <button className="hamburger-btn" onClick={() => setMobileMenuOpen(true)} aria-label="Open menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" width="20"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <span className="brand-text-mobile">Verdict</span>
+        <span style={{ width: 40 }} />
+      </div>
+
+      {/* طبقة سوداء خلف القائمة، تسكرها لما تنضغط */}
+      <div className={`sidebar-backdrop ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} />
+
       {/* 1. القائمة الجانبية (الداكنة الفاخرة) */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="sidebar-brand">
           <img src="/Verdict.png" alt="Verdict" className="sidebar-logo" />
           <div className="brand-text">
@@ -172,7 +185,7 @@ const Dashboard = ({ history = [], addToHistory = () => {} }) => {
             { id: 'logs', label: 'Analysis Logs', icon: <path d="M4 6h16M4 12h16M4 18h16"/> },
             { id: 'settings', label: 'Settings', icon: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c0 .72.5 1.35 1.2 1.51H21a2 2 0 110 4h-.09c-.7.16-1.2.79-1.2 1.51z"/></> }
           ].map(item => (
-            <button key={item.id} className={`nav-item ${activeNav === item.id ? 'active' : ''}`} onClick={() => setActiveNav(item.id)}>
+            <button key={item.id} className={`nav-item ${activeNav === item.id ? 'active' : ''}`} onClick={() => { setActiveNav(item.id); setMobileMenuOpen(false); }}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{item.icon}</svg>
               {item.label}
             </button>
