@@ -45,7 +45,6 @@ a { text-decoration: none; color: inherit; }
   position: relative; 
   z-index: 10; 
   border-right: 1px solid var(--sidebar-border); 
-  box-shadow: 4px 0 16px rgba(0,0,0,0.15);
   overflow: hidden;
 }
 
@@ -96,7 +95,7 @@ a { text-decoration: none; color: inherit; }
 .upgrade-btn { width: 100%; padding: 10px; border-radius: 8px; background: linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%); color: #fff; font-weight: 700; font-size: 0.85rem; }
 
 /* منطقة العمل الرئيسية - تسمح بالتمدد للأسفل */
-.main-area { flex: 1; display: flex; flex-direction: column; padding: 24px 32px; background: var(--canvas); gap: 24px; min-width: 0; }
+.main-area { flex: 1; display: flex; flex-direction: column; padding: 24px 32px; background: var(--canvas); gap: 24px; min-width: 0; box-shadow: inset 12px 0 16px -14px rgba(0,0,0,0.25); }
 
 .top-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; }
 .header-titles h1 { font-size: 1.8rem; font-weight: 800; color: var(--text-main); margin-bottom: 6px; letter-spacing: -0.5px; }
