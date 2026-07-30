@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Dashboard from './components/Dashboard'; // تأكد أن المسار صحيح حسب مجلداتك
+import Dashboard from './components/Dashboard';
 
 export default function App() {
   const [history, setHistory] = useState([]);
